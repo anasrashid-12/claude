@@ -6,7 +6,7 @@ Maxflow Gallery is a Shopify app that provides AI-powered image processing capab
 
 ### Core Functionality
 - **Shopify Store Integration**: OAuth connection and product synchronization
-- **AI Image Processing**: Background removal, rescaling, quality optimization
+- **AI Image Processing**: Background removal, rescaling optimization
 - **Bulk Operations**: Process multiple images with queue management
 - **Real-time Progress**: Live status updates for processing operations
 - **Image Management**: Backup, version control, and selective processing
