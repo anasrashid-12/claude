@@ -1,3 +1,124 @@
+# Shopify AI Image Processing App
+
+A powerful Shopify application that provides AI-powered image processing capabilities for e-commerce stores.
+
+## Features
+
+- Background removal
+- Image optimization
+- Bulk processing
+- Real-time progress tracking
+- Automatic image backup
+- Comprehensive monitoring
+
+## Tech Stack
+
+### Frontend
+- Next.js with TypeScript
+- Shopify Polaris components
+- React Query for data fetching
+- Zustand for state management
+
+### Backend
+- Python with FastAPI
+- Celery for task queue
+- Redis for caching and queue
+- Supabase for database
+- Cloudflare R2 for storage
+
+### Monitoring
+- Prometheus for metrics
+- Grafana for visualization
+- Custom alerting system
+
+## Project Structure
+
+```
+.
+├── frontend/                # Next.js frontend application
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── features/       # Feature-specific components
+│   │   ├── services/       # API and auth services
+│   │   ├── hooks/         # Custom React hooks
+│   │   └── utils/         # Utility functions
+│   └── public/            # Static assets
+│
+├── backend/               # Python/FastAPI backend
+│   ├── app/
+│   │   ├── api/          # API endpoints
+│   │   ├── services/     # Business logic
+│   │   ├── models/       # Database models
+│   │   └── core/         # Core functionality
+│   └── tests/            # Test suites
+│
+├── monitoring/           # Monitoring configuration
+│   ├── prometheus/
+│   └── grafana/
+│
+└── docs/                # Documentation
+    ├── api/            # API documentation
+    ├── deployment/     # Deployment guides
+    └── maintenance/    # Maintenance guides
+```
+
+## Getting Started
+
+1. **Prerequisites**
+   - Node.js 18+
+   - Python 3.9+
+   - Docker and Docker Compose
+   - Shopify Partner Account
+
+2. **Installation**
+   ```bash
+   # Clone repository
+   git clone <repository-url>
+   cd shopify-ai-image-app
+
+   # Install frontend dependencies
+   cd frontend
+   npm install
+
+   # Install backend dependencies
+   cd ../backend
+   pip install -r requirements.txt
+   ```
+
+3. **Configuration**
+   - Set up environment variables
+   - Configure Shopify app credentials
+   - Set up Cloudflare R2 bucket
+   - Configure Supabase database
+
+4. **Development**
+   ```bash
+   # Start frontend
+   cd frontend
+   npm run dev
+
+   # Start backend
+   cd backend
+   python run_dev.py
+   ```
+
+## Documentation
+
+- [API Documentation](docs/api/README.md)
+- [Deployment Guide](docs/deployment/README.md)
+- [Maintenance Guide](docs/maintenance/README.md)
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. 
 # Maxflow Gallery - Shopify Gallery App
 
 Maxflow Gallery is a Shopify app that provides AI-powered image processing capabilities for e-commerce stores, featuring background removal, image rescaling, and quality optimization.
