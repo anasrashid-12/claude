@@ -1,11 +1,14 @@
 // app/layout.tsx
-'use client';
-
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { AppProvider } from '@shopify/polaris';
-import '@shopify/polaris/build/esm/styles.css';
-import { Toaster } from 'react-hot-toast';
-import { ShopifyProvider } from './providers/ShopifyProvider';
+
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'MaxFlow AI Image App',
+  description: 'AI-powered image processing for your Shopify store',
+};
 
 export default function RootLayout({
   children,
@@ -14,25 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://unpkg.com/@shopify/polaris@12.0.0/build/esm/styles.css"
-        />
-      </head>
-      <body className="app-root" suppressHydrationWarning>
-        <ShopifyProvider>
-          <AppProvider i18n={{
-            Polaris: {
-              Common: {
-                loading: 'Loading...'
-              }
-            }
-          }}>
-            {children}
-            <Toaster position="top-right" />
-          </AppProvider>
-        </ShopifyProvider>
+      <body className={inter.className}>
+        <div id="app">
+          {children}
+        </div>
       </body>
     </html>
   );

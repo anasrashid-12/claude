@@ -1,18 +1,21 @@
+'use client';
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 interface ShopifyContextType {
   shop: string | null;
-  accessToken: string | null;
-  isLoading: boolean;
+  setShop: (shop: string | null) => void;
 }
 
-const ShopifyContext = createContext<ShopifyContextType>({
-  shop: null,
-  accessToken: null,
-  isLoading: true,
-});
+const ShopifyContext = createContext<ShopifyContextType | undefined>(undefined);
 
-export const useShopify = () => useContext(ShopifyContext);
+export function useShopify() {
+  const context = useContext(ShopifyContext);
+  if (context === undefined) {
+    throw new Error('useShopify must be used within a ShopifyProvider');
+  }
+  return context;
+}
 
 interface ShopifyProviderProps {
   children: ReactNode;
@@ -20,30 +23,23 @@ interface ShopifyProviderProps {
 
 export function ShopifyProvider({ children }: ShopifyProviderProps) {
   const [shop, setShop] = useState<string | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const initializeShopify = () => {
-      const params = new URLSearchParams(window.location.search);
-      const shopParam = params.get('shop');
-      
-      if (shopParam) {
-        setShop(shopParam);
-        // Try to get the access token from cookies or session storage
-        const storedToken = sessionStorage.getItem('shopify_access_token');
-        if (storedToken) {
-          setAccessToken(storedToken);
-        }
-      }
-      setIsLoading(false);
-    };
-
-    initializeShopify();
+    // Get shop from URL on initial load
+    const params = new URLSearchParams(window.location.search);
+    const shopParam = params.get('shop');
+    if (shopParam) {
+      setShop(shopParam);
+    }
   }, []);
 
+  const value = {
+    shop,
+    setShop,
+  };
+
   return (
-    <ShopifyContext.Provider value={{ shop, accessToken, isLoading }}>
+    <ShopifyContext.Provider value={value}>
       {children}
     </ShopifyContext.Provider>
   );

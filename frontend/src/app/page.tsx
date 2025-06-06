@@ -1,140 +1,77 @@
 // src/app/page.tsx
 'use client';
 
-import { 
-  Page, 
-  Layout, 
-  Tabs, 
-  Frame, 
-  Loading, 
-  Banner,
-  Card,
-  BlockStack,
-  Text
-} from '@shopify/polaris';
-import { useState, useCallback, Suspense } from 'react';
-import DashboardStats from '../components/DashboardStats';
-import ImageGallery from '../components/ImageGallery';
-import ProcessingQueue from '../components/ProcessingQueue';
-import ProductSync from '../components/ProductSync';
-import VersionHistory from '../components/VersionHistory';
-import ProcessingSettings from '../components/ProcessingSettings';
+import { useEffect, useState } from 'react';
+import { AppProvider as PolarisProvider } from '@shopify/polaris';
+import { createApp } from '@shopify/app-bridge';
+import { Redirect } from '@shopify/app-bridge/actions';
+import enTranslations from '@shopify/polaris/locales/en.json';
+import '@shopify/polaris/build/esm/styles.css';
+
+function AppContent() {
+  return (
+    <div className="app-content">
+      <div className="app-container p-6">
+        <h1 className="text-2xl font-bold mb-4">Welcome to MaxFlow AI Image App</h1>
+        <p className="mb-4">Start processing your product images with AI.</p>
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
-  const [selectedTab, setSelectedTab] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [appBridgeConfig, setAppBridgeConfig] = useState<{
+    apiKey: string;
+    host: string;
+    forceRedirect: boolean;
+  } | null>(null);
 
-  const tabs = [
-    {
-      id: 'dashboard',
-      content: 'Dashboard',
-      accessibilityLabel: 'Dashboard',
-      panelID: 'dashboard-content',
-    },
-    {
-      id: 'products',
-      content: 'Products',
-      accessibilityLabel: 'Product Synchronization',
-      panelID: 'products-content',
-    },
-    {
-      id: 'history',
-      content: 'Version History',
-      accessibilityLabel: 'Version History',
-      panelID: 'history-content',
-    },
-    {
-      id: 'settings',
-      content: 'Settings',
-      accessibilityLabel: 'Processing Settings',
-      panelID: 'settings-content',
-    },
-  ];
-
-  const handleTabChange = useCallback(
-    async (selectedTabIndex: number) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        setSelectedTab(selectedTabIndex);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred while changing tabs');
-      } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    // Check if we need to redirect to HTTPS
+    if (typeof window !== 'undefined') {
+      if (window.location.protocol === 'http:') {
+        const httpsUrl = `https://${window.location.host}${window.location.pathname}${window.location.search}`;
+        window.location.replace(httpsUrl);
+        return;
       }
-    },
-    [],
-  );
 
-  const renderTabContent = () => {
-    switch (selectedTab) {
-      case 0:
-        return (
-          <Layout>
-            <Layout.Section>
-              <DashboardStats />
-            </Layout.Section>
-            
-            <Layout.Section>
-              <Card>
-                <ImageGallery />
-              </Card>
-            </Layout.Section>
+      // Get the host and API key
+      const host = new URLSearchParams(window.location.search).get('host');
+      const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
 
-            <Layout.Section variant="oneThird">
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">Processing Queue</Text>
-                  <ProcessingQueue />
-                </BlockStack>
-              </Card>
-            </Layout.Section>
-          </Layout>
-        );
-      case 1:
-        return (
-          <Layout.Section>
-            <ProductSync />
-          </Layout.Section>
-        );
-      case 2:
-        return (
-          <Layout.Section>
-            <VersionHistory />
-          </Layout.Section>
-        );
-      case 3:
-        return (
-          <Layout.Section>
-            <ProcessingSettings />
-          </Layout.Section>
-        );
-      default:
-        return null;
+      if (host && apiKey) {
+        const config = {
+          host: host,
+          apiKey: apiKey,
+          forceRedirect: true,
+        };
+
+        setAppBridgeConfig(config);
+
+        // Initialize App Bridge
+        const app = createApp(config);
+
+        // Set up redirect handler
+        const redirect = Redirect.create(app);
+        redirect.dispatch(Redirect.Action.REMOTE, window.location.href);
+      }
     }
-  };
+
+    setIsLoading(false);
+  }, []);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!appBridgeConfig) {
+    return <div>Missing app configuration</div>;
+  }
 
   return (
-    <Frame>
-      {isLoading && <Loading />}
-      <Page title="AI Image Processing">
-        <Layout>
-          <Layout.Section>
-            {error && (
-              <Banner tone="critical" onDismiss={() => setError(null)}>
-                <p>{error}</p>
-              </Banner>
-            )}
-            
-            <Tabs tabs={tabs} selected={selectedTab} onSelect={handleTabChange} />
-            
-            <Suspense fallback={<Loading />}>
-              {renderTabContent()}
-            </Suspense>
-          </Layout.Section>
-        </Layout>
-      </Page>
-    </Frame>
+    <PolarisProvider i18n={enTranslations}>
+      <AppContent />
+    </PolarisProvider>
   );
 }

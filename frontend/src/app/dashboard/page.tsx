@@ -1,139 +1,128 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-
-interface Stats {
-  totalUploads: number;
-  processingCount: number;
-  completedCount: number;
-  failedCount: number;
-}
-
-interface RecentUpload {
-  id: string;
-  filename: string;
-  status: 'processing' | 'completed' | 'failed';
-  imageUrl?: string;
-  createdAt: string;
-}
+import React from 'react';
+import {
+  Page,
+  Layout,
+  Card,
+  Text,
+  ProgressBar,
+  Button,
+  DataTable,
+  BlockStack,
+  Box,
+  InlineStack
+} from '@shopify/polaris';
+import { ImageMajor } from '@shopify/polaris-icons';
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({
-    totalUploads: 0,
-    processingCount: 0,
-    completedCount: 0,
-    failedCount: 0
-  });
+  // Sample data - replace with real data from API
+  const stats = {
+    totalProcessed: 1234,
+    inQueue: 5,
+    failedJobs: 2,
+    storageUsed: '45.2 GB',
+  };
 
-  const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
-
-  // TODO: Replace with actual API call
-  useEffect(() => {
-    // Simulated data for now
-    setStats({
-      totalUploads: 15,
-      processingCount: 2,
-      completedCount: 12,
-      failedCount: 1
-    });
-
-    setRecentUploads([
-      {
-        id: '1',
-        filename: 'product1.jpg',
-        status: 'completed',
-        imageUrl: 'https://via.placeholder.com/150',
-        createdAt: new Date().toISOString()
-      },
-      // Add more mock data as needed
-    ]);
-  }, []);
+  const recentJobs = [
+    ['Product A', 'Background Removal', 'Completed', '2 mins ago'],
+    ['Product B', 'Optimization', 'Processing', '5 mins ago'],
+    ['Product C', 'Bulk Process', 'Failed', '10 mins ago'],
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Total Uploads</dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">{stats.totalUploads}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Processing</dt>
-            <dd className="mt-1 text-3xl font-semibold text-yellow-500">{stats.processingCount}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Completed</dt>
-            <dd className="mt-1 text-3xl font-semibold text-green-500">{stats.completedCount}</dd>
-          </div>
-        </div>
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">Failed</dt>
-            <dd className="mt-1 text-3xl font-semibold text-red-500">{stats.failedCount}</dd>
-          </div>
-        </div>
-      </div>
+    <Page title="Dashboard">
+      <BlockStack gap="500">
+        {/* Stats Overview */}
+        <Layout>
+          <Layout.Section>
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <InlineStack gap="400" align="space-between">
+                    <Box padding="400" width="25%">
+                      <BlockStack gap="200" align="center">
+                        <Text as="h3" variant="headingMd">Total Processed</Text>
+                        <Text as="p" variant="heading2xl">{stats.totalProcessed}</Text>
+                      </BlockStack>
+                    </Box>
+                    <Box padding="400" width="25%">
+                      <BlockStack gap="200" align="center">
+                        <Text as="h3" variant="headingMd">In Queue</Text>
+                        <Text as="p" variant="heading2xl">{stats.inQueue}</Text>
+                      </BlockStack>
+                    </Box>
+                    <Box padding="400" width="25%">
+                      <BlockStack gap="200" align="center">
+                        <Text as="h3" variant="headingMd">Failed Jobs</Text>
+                        <Text as="p" variant="heading2xl">{stats.failedJobs}</Text>
+                      </BlockStack>
+                    </Box>
+                    <Box padding="400" width="25%">
+                      <BlockStack gap="200" align="center">
+                        <Text as="h3" variant="headingMd">Storage Used</Text>
+                        <Text as="p" variant="heading2xl">{stats.storageUsed}</Text>
+                      </BlockStack>
+                    </Box>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
 
-      {/* Recent Uploads */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Uploads</h3>
-          <Link 
-            href="/dashboard/upload"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Upload New
-          </Link>
-        </div>
-        <div className="border-t border-gray-200">
-          <ul role="list" className="divide-y divide-gray-200">
-            {recentUploads.map((upload) => (
-              <li key={upload.id} className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    {upload.imageUrl && (
-                      <div className="flex-shrink-0 h-12 w-12 relative">
-                        <Image
-                          src={upload.imageUrl}
-                          alt={upload.filename}
-                          fill
-                          className="rounded-md object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="ml-4">
-                      <p className="text-sm font-medium text-gray-900">{upload.filename}</p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(upload.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        upload.status === 'completed'
-                          ? 'bg-green-100 text-green-800'
-                          : upload.status === 'processing'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {upload.status}
-                    </span>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
+          {/* Processing Queue */}
+          <Layout.Section>
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <Text as="h3" variant="headingMd">Current Progress</Text>
+                    <Button>View All</Button>
+                  </InlineStack>
+                  <ProgressBar progress={75} size="small" />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    3 of 4 images processed
+                  </Text>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+
+          {/* Recent Jobs */}
+          <Layout.Section>
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <Text as="h3" variant="headingMd">Recent Jobs</Text>
+                  <DataTable
+                    columnContentTypes={['text', 'text', 'text', 'text']}
+                    headings={['Product', 'Process Type', 'Status', 'Time']}
+                    rows={recentJobs}
+                  />
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+
+          {/* Quick Actions */}
+          <Layout.Section variant="oneThird">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <Text as="h3" variant="headingMd">Quick Actions</Text>
+                  <BlockStack gap="300">
+                    <Button variant="primary" icon={ImageMajor}>
+                      Process New Image
+                    </Button>
+                    <Button>View Gallery</Button>
+                    <Button>Settings</Button>
+                  </BlockStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </BlockStack>
+    </Page>
   );
 } 

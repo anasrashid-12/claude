@@ -1,22 +1,81 @@
-import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
+import { shopifyApi } from '@shopify/shopify-api';
 import '@shopify/shopify-api/adapters/node';
 import { NextRequest } from 'next/server';
 import crypto from 'crypto';
-import { SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SCOPES, SHOPIFY_APP_URL } from '@/config/shopify';
+import { SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SCOPES, SHOPIFY_APP_URL } from '../config/shopify';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Initialize the Shopify API client
+export const shopifyRuntimeConfig = {
+  // Runtime string functions
+  runtime: {
+    // String manipulation functions required by the API
+    stringifyQuery: (input: Record<string, any>) => new URLSearchParams(input).toString(),
+    parseQueryString: (queryString: string) => {
+      const params = new URLSearchParams(queryString);
+      const output: Record<string, string> = {};
+      params.forEach((value, key) => {
+        output[key] = value;
+      });
+      return output;
+    },
+    // Basic crypto functions
+    crypto: {
+      randomBytes: (size: number) => {
+        const array = new Uint8Array(size);
+        crypto.getRandomValues(array);
+        return array;
+      },
+      createHmac: (algorithm: string, key: string) => {
+        return {
+          update: (data: string) => ({
+            digest: async () => {
+              const encoder = new TextEncoder();
+              const keyBuffer = encoder.encode(key);
+              const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyBuffer,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+              );
+              const signature = await crypto.subtle.sign(
+                'HMAC',
+                cryptoKey,
+                encoder.encode(data)
+              );
+              return Buffer.from(signature).toString('base64');
+            },
+          }),
+        };
+      },
+    },
+    // Storage implementations
+    applicationStorage: {
+      read: async () => ({}),
+      write: async () => {},
+      delete: async () => {},
+    },
+    sessionStorage: {
+      storeSession: async () => true,
+      loadSession: async () => undefined,
+      deleteSession: async () => true,
+    },
+    // Logger configuration
+    logger: { level: 0 },
+  },
+};
+
 export const shopify = shopifyApi({
   apiKey: SHOPIFY_API_KEY,
   apiSecretKey: SHOPIFY_API_SECRET,
   scopes: SCOPES,
-  hostName: SHOPIFY_APP_URL.replace(/https?:\/\//, ''),
-  hostScheme: SHOPIFY_APP_URL.split('://')[0] as 'http' | 'https',
-  apiVersion: LATEST_API_VERSION,
+  hostName: 'localhost:3000',
+  hostScheme: 'http',
+  apiVersion: '2024-01',
   isEmbeddedApp: true,
   isCustomStoreApp: false,
-  logger: { level: isDevelopment ? 0 : 4 },
+  ...shopifyRuntimeConfig,
 });
 
 // Helper function to convert NextRequest to format Shopify API expects

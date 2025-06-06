@@ -1,63 +1,30 @@
-version: '3.8'
-
+version: '3'
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: redis-shopify
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app-network
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: redis-commander
-    ports:
-      - "8081:8081"
-    environment:
-      - REDIS_HOSTS=local:redis:6379
-    depends_on:
-      - redis
-    restart: unless-stopped
-    networks:
-      - app-network
-
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  celery_worker:
-    build: 
-      context: ./backend
+  frontend:
+    build:
+      context: ./frontend
       dockerfile: Dockerfile
-    command: celery -A celery_app worker --loglevel=info
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     environment:
-      - REDIS_URL=redis://redis:6379
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-    depends_on:
-      - redis
-      - backend
+      - NODE_ENV=development
+    networks:
+      - app-network
 
-volumes:
-  redis_data:
-    driver: local
+  ngrok:
+    image: ngrok/ngrok:latest
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http frontend:3000
+    depends_on:
+      - frontend
+    networks:
+      - app-network
 
 networks:
   app-network:

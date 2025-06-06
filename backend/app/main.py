@@ -8,20 +8,25 @@ from .api.routes import shopify
 from .core.redis_client import get_redis
 from .database import Database
 from prometheus_client import make_asgi_app
+from app.core.config import settings
+from app.api.v1.router import api_router
+from app.core.exceptions import AppException
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(
-    title="Shopify AI Image Processor",
-    description="API for processing Shopify product images using AI",
-    version="1.0.0"
+    title=settings.PROJECT_NAME,
+    version=settings.PROJECT_VERSION,
+    description="AI Image Processing API for Shopify stores",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
 
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +52,15 @@ async def errors_handling(request: Request, call_next):
 
 # Include routers
 app.include_router(shopify.router)
+app.include_router(api_router, prefix="/api/v1")
+
+# Exception handler
+@app.exception_handler(AppException)
+async def app_exception_handler(request: Request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 @app.get("/")
 async def root():

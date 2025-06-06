@@ -1,10 +1,48 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+/frontend/.next/
+/frontend/out/
+
+# Production
+/build
+/frontend/build
+
+# Misc
+.DS_Store
+*.pem
+.idea/
+.vscode/
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -16,35 +54,48 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Virtual Environment
+venv/
+env/
+ENV/
 
-# IDEs and editors
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
-
-# Environment variables
-.env
-.env.*
-!.env.example
 
 # Logs
 logs/
 *.log
+
+# Database
+*.sqlite3
+*.db
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Project specific
+temp-app/
+.coverage
+htmlcov/
+.pytest_cache/
+celerybeat-schedule
+celerybeat.pid
+flower.db
+
+# Docker
+.docker/
+docker-compose.override.yml
 
 # Redis
 *.rdb
@@ -62,4 +113,8 @@ dist/
 # Coverage
 coverage/
 .coverage
-htmlcov/ 
+htmlcov/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/ 

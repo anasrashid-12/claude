@@ -1,19 +1,42 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-python-dotenv==1.0.0
-celery==5.3.4
+# FastAPI and ASGI server
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Database
+supabase-py==2.3.4
+psycopg2-binary==2.9.9
+
+# Redis and Celery
 redis==5.0.1
-boto3==1.29.3
-prometheus-client==0.19.0
-httpx==0.25.1
-pillow==10.1.0
-python-multipart==0.0.6
-pydantic==2.4.2
-pydantic-settings==2.0.3
-supabase==2.0.3
-shopify==12.3.0
+celery==5.3.6
+flower==2.0.1
+
+# Image Processing
+Pillow==10.2.0
+python-magic==0.4.27
+
+# Shopify
+shopify-python-api==12.4.0
+
+# Storage
+boto3==1.34.34
+
+# Utilities
+python-dotenv==1.0.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+email-validator==2.1.0.post1
+python-dateutil==2.8.2
 requests==2.31.0
-pytest==7.4.3
-pytest-asyncio==0.21.1
-aiohttp==3.9.0
-python-jose[cryptography]==3.3.0 
+
+# Development
+pytest==8.0.0
+pytest-asyncio==0.23.5
+httpx==0.26.0
+black==24.1.1
+isort==5.13.2
+flake8==7.0.0
+mypy==1.8.0 
