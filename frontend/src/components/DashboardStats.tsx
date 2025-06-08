@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
-  Layout,
-  TextContainer,
+  Grid,
   Text,
-  Icon,
-  Box,
-  Banner,
   Button,
+  Icon,
   Spinner,
-  InlineStack,
 } from '@shopify/polaris';
 import {
-  CircleTickMajor,
-  ClockMajor,
-  AlertMinor,
   ImageMajor,
-  RefreshMinor,
+  ClockMajor,
+  AnalyticsMajor,
+  StorageMajor,
 } from '@shopify/polaris-icons';
-import { useProcessingStats } from '../utils/hooks';
+
+interface ProcessingStats {
+  totalProcessed: number;
+  successRate: number;
+  averageProcessingTime: number;
+  totalStorageUsed: number;
+  imagesPerHour: number;
+}
 
 const StatCard: React.FC<{
   title: string;
@@ -29,107 +31,148 @@ const StatCard: React.FC<{
   subtitle?: string;
 }> = ({ title, value, icon, trend, loading, subtitle }) => (
   <Card>
-    <Box padding="400">
-      <Box>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {icon}
-          <TextContainer spacing="tight">
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Spinner size="small" />
-                <Text variant="headingMd" as="h3">Loading...</Text>
-              </div>
-            ) : (
-              <Text variant="headingMd" as="h3">{value}</Text>
-            )}
-            <Text variant="bodySm" as="p" tone="subdued">
-              {title}
-            </Text>
+    <div className="stat-card">
+      <div className="stat-header">
+        <Text as="h3" variant="headingSm">{title}</Text>
+        <Icon source={icon} />
+      </div>
+      <div className="stat-content">
+        {loading ? (
+          <Spinner size="small" />
+        ) : (
+          <>
+            <Text as="p" variant="heading2xl">{value}</Text>
             {subtitle && (
-              <Text variant="bodySm" as="p" tone="subdued">
+              <Text as="p" variant="bodySm" tone="subdued">
                 {subtitle}
               </Text>
             )}
             {trend !== undefined && (
               <Text
-                variant="bodySm"
                 as="p"
+                variant="bodySm"
                 tone={trend >= 0 ? 'success' : 'critical'}
               >
                 {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
               </Text>
             )}
-          </TextContainer>
-        </div>
-      </Box>
-    </Box>
+          </>
+        )}
+      </div>
+    </div>
   </Card>
 );
 
 export const DashboardStats: React.FC = () => {
-  const { data: stats, isLoading, error, refetch } = useProcessingStats();
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [stats, setStats] = useState<ProcessingStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetch();
-    setIsRefreshing(false);
+    try {
+      setLoading(true);
+      const response = await fetch('/api/stats/processing');
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    handleRefresh();
+  }, []);
+
+  const formatStorageSize = (bytes: number): string => {
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let size = bytes;
+    while (size >= 1024 && i < sizes.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return `${size.toFixed(1)} ${sizes[i]}`;
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    return `${(seconds / 60).toFixed(1)}m`;
   };
 
   return (
-    <Layout>
-      <Layout.Section>
-        {error && (
-          <Banner tone="critical">
-            <p>Failed to load statistics: {error.message}</p>
-          </Banner>
-        )}
+    <div className="dashboard-stats">
+      <div className="stats-header">
+        <Text as="h2" variant="headingLg">Processing Statistics</Text>
+        <Button onClick={handleRefresh} loading={loading}>
+          Refresh
+        </Button>
+      </div>
 
-        <Box padding="400">
-          <InlineStack align="space-between" blockAlign="center">
-            <Text variant="headingLg" as="h2">Processing Statistics</Text>
-            <Button
-              icon={<Icon source={RefreshMinor} />}
-              onClick={handleRefresh}
-              disabled={isLoading || isRefreshing}
-              loading={isRefreshing}
-            >
-              Refresh
-            </Button>
-          </InlineStack>
+      <Grid>
+        <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3 }}>
+          <StatCard
+            title="Total Processed"
+            value={stats?.totalProcessed || 0}
+            icon={ImageMajor}
+            loading={loading}
+          />
+        </Grid.Cell>
 
-          <Box paddingBlockStart="400">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
-              <StatCard
-                title="Total Processed"
-                value={stats?.totalProcessed || 0}
-                icon={<Icon source={CircleTickMajor} tone="success" />}
-                loading={isLoading}
-              />
-              <StatCard
-                title="In Queue"
-                value={stats?.inQueue || 0}
-                icon={<Icon source={ClockMajor} tone="warning" />}
-                loading={isLoading}
-              />
-              <StatCard
-                title="Failed Jobs"
-                value={stats?.failedJobs || 0}
-                icon={<Icon source={AlertMinor} tone="critical" />}
-                loading={isLoading}
-              />
-              <StatCard
-                title="Success Rate"
-                value={`${stats?.successRate || 0}%`}
-                icon={<Icon source={ImageMajor} tone="emphasis" />}
-                subtitle={`Avg. Time: ${stats?.averageProcessingTime || '0s'}`}
-                loading={isLoading}
-              />
-            </div>
-          </Box>
-        </Box>
-      </Layout.Section>
-    </Layout>
+        <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3 }}>
+          <StatCard
+            title="Success Rate"
+            value={`${stats?.successRate.toFixed(1)}%` || '0%'}
+            icon={AnalyticsMajor}
+            loading={loading}
+            trend={stats?.successRate ? stats.successRate - 100 : 0}
+          />
+        </Grid.Cell>
+
+        <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3 }}>
+          <StatCard
+            title="Avg. Processing Time"
+            value={stats ? formatTime(stats.averageProcessingTime) : '0s'}
+            icon={ClockMajor}
+            loading={loading}
+            subtitle="per image"
+          />
+        </Grid.Cell>
+
+        <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 3 }}>
+          <StatCard
+            title="Storage Used"
+            value={stats ? formatStorageSize(stats.totalStorageUsed) : '0 B'}
+            icon={StorageMajor}
+            loading={loading}
+          />
+        </Grid.Cell>
+      </Grid>
+
+      <style jsx>{`
+        .dashboard-stats {
+          padding: 20px;
+        }
+        .stats-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        .stat-card {
+          padding: 16px;
+        }
+        .stat-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .stat-content {
+          text-align: center;
+        }
+      `}</style>
+    </div>
   );
 };
 

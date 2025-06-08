@@ -2,6 +2,8 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
 def run_command(command):
     """Run a command and print its output."""
@@ -51,5 +53,46 @@ def setup_supabase():
     
     return True
 
+def setup_database():
+    # Load environment variables
+    load_dotenv()
+    
+    # Get Supabase credentials
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+    
+    if not supabase_url or not supabase_key:
+        raise Exception("Please set SUPABASE_URL and SUPABASE_KEY in your .env file")
+    
+    # Initialize Supabase client
+    supabase: Client = create_client(supabase_url, supabase_key)
+    
+    try:
+        # Get the current directory
+        current_dir = Path(__file__).resolve().parent
+        
+        # Read SQL files
+        with open(current_dir / "init.sql", "r") as f:
+            init_sql = f.read()
+        
+        with open(current_dir / "complete_migration.sql", "r") as f:
+            migration_sql = f.read()
+        
+        # Execute SQL files
+        print("Running initialization SQL...")
+        result = supabase.rpc("exec_sql", {"sql": init_sql}).execute()
+        print(f"Initialization result: {result}")
+        
+        print("\nRunning complete migration SQL...")
+        result = supabase.rpc("exec_sql", {"sql": migration_sql}).execute()
+        print(f"Migration result: {result}")
+        
+        print("\nDatabase setup completed successfully!")
+        
+    except Exception as e:
+        print(f"Error setting up database: {str(e)}")
+        raise
+
 if __name__ == "__main__":
-    setup_supabase() 
+    setup_supabase()
+    setup_database() 

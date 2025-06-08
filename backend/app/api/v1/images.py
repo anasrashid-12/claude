@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, File, UploadFile
 from typing import List, Optional
-from ....models import Shop, ImageJob, ProcessingType
-from ....services.image_service import ImageService
-from ....core.auth import get_current_shop
+from app.models import Shop, ImageJob, ProcessingType
+from app.services.image_service import ImageService
+from app.api.deps import get_current_shop
 
 router = APIRouter()
 

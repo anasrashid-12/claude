@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'MaxFlow AI Image App',
+  title: 'Shopify AI Image Processor',
   description: 'AI-powered image processing for your Shopify store',
 };
 
@@ -18,9 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div id="app">
+        <main className="min-h-screen bg-gray-50">
           {children}
-        </div>
+        </main>
       </body>
     </html>
   );

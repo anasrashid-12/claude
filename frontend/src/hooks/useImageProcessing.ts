@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { processImage as processImageApi } from '../services/api';
 
 interface ProcessedImage {
   id: string;
@@ -14,57 +12,59 @@ interface ImageFile extends File {
   preview?: string;
 }
 
+interface ProcessingResult {
+  url: string;
+  status: string;
+}
+
 export function useImageProcessing() {
+  const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ProcessingResult | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: async (file: ImageFile) => {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const result = await processImageApi(formData);
-        return result;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to process image';
-        setError(errorMessage);
-        throw err;
-      }
-    },
-    onSuccess: () => {
-      setError(null);
-    }
-  });
-
-  const processImage = async (file: ImageFile, shouldRetry = true): Promise<ProcessedImage> => {
+  const processImage = async (file: File, type: string) => {
     try {
-      const result = await mutation.mutateAsync(file);
-      return result;
-    } catch (err) {
-      if (shouldRetry && err instanceof Error && err.message.includes('rate limit')) {
-        // Wait and retry once if rate limited
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return processImage(file, false);
+      setIsProcessing(true);
+      setError(null);
+      setResult(null);
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+
+      const response = await fetch('/api/process', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to process image');
       }
-      throw err;
+
+      const data = await response.json();
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process image');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const processMultiple = async (files: ImageFile[]) => {
+  const processMultiple = async (files: File[], type: string) => {
     const results = {
-      successful: [] as ProcessedImage[],
-      failed: [] as { file: ImageFile; error: string }[]
+      successful: [] as ProcessingResult[],
+      failed: [] as string[]
     };
 
     for (const file of files) {
       try {
-        const result = await processImage(file);
-        results.successful.push(result);
+        await processImage(file, type);
+        if (result) {
+          results.successful.push(result);
+        }
       } catch (err) {
-        results.failed.push({
-          file,
-          error: err instanceof Error ? err.message : 'Unknown error'
-        });
+        results.failed.push(err instanceof Error ? err.message : 'Failed to process image');
       }
     }
 
@@ -74,10 +74,8 @@ export function useImageProcessing() {
   return {
     processImage,
     processMultiple,
-    isLoading: mutation.isPending,
+    isProcessing,
     error,
-    isError: mutation.isError,
-    reset: mutation.reset,
-    canRetry: !mutation.isPending
+    result,
   };
 } 

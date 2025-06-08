@@ -1,24 +1,34 @@
-# Shopify AI Image App
+# Shopify AI Image Processing Application
 
-A Shopify application that uses AI to process and enhance product images.
+A modern application that leverages AI to process and enhance product images, built with Next.js, FastAPI, and Supabase.
+
+## Tech Stack
+
+- Frontend: Next.js with Tailwind CSS
+- Backend: FastAPI with Celery workers
+- Database: Supabase
+- Image Processing: rembg, OpenCV
+- Infrastructure: Docker, Redis
 
 ## Project Structure
 
 ```
-├── frontend/           # Next.js frontend application
-├── backend/           # FastAPI backend application
-├── docs/             # Documentation
-└── Requirements/     # Project requirements and specifications
+├── frontend/          # Next.js frontend application
+├── backend/          # FastAPI backend service
+├── supabase/         # Database migrations and configurations
+├── docs/            # Documentation
+└── monitoring/      # Monitoring configurations (Flower)
 ```
 
 ## Prerequisites
 
-- Node.js 18.x or later
-- Python 3.8 or later
-- Shopify Partner account
-- ngrok for local development
+- Docker and Docker Compose
+- Node.js 18.x or later (for local development)
+- Python >=3.10,<3.12 (for local development)
+- Supabase account
+- Poetry (Python dependency management)
 
-## Setup
+## Quick Start with Docker
 
 1. Clone the repository:
 ```bash
@@ -26,50 +36,81 @@ git clone https://github.com/yourusername/shopify-ai-image-app.git
 cd shopify-ai-image-app
 ```
 
-2. Install dependencies:
-```bash
-# Install frontend dependencies
-npm install
+2. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Fill in your Supabase credentials and other required variables
 
-# Install backend dependencies
+3. Start the application:
+```bash
+docker-compose up --build
+```
+
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
+- Celery Flower: http://localhost:5555
+
+## Local Development Setup
+
+1. Install dependencies:
+```bash
+# Frontend
+cd frontend
+npm install
+cd ..
+
+# Backend
 cd backend
-pip install -r requirements.txt
+poetry install
 cd ..
 ```
 
-3. Set up environment variables:
-   - Copy `.env.example` to `.env.local`
-   - Fill in your Shopify API credentials and other required variables
-
-4. Start the development servers:
+2. Start the services:
 ```bash
-# Start frontend
+# Start all services with Docker
+docker-compose up
+
+# Or start services individually:
+# Frontend
+cd frontend
 npm run dev
 
-# Start backend (in a new terminal)
-npm run dev:backend
+# Backend
+cd backend
+poetry run uvicorn app.main:app --reload
+
+# Celery Worker
+cd backend
+poetry run celery -A app.core.celery_app worker -Q image_processing
 ```
 
-5. Start ngrok:
-```bash
-ngrok http 3000
-```
+## Environment Variables
 
-6. Update your Shopify App URLs in the Shopify Partner dashboard with your ngrok URL.
-
-## Development
-
-- Frontend runs on `http://localhost:3000`
-- Backend runs on `http://localhost:8000`
-- API documentation available at `http://localhost:8000/docs`
+Required environment variables:
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_KEY`: Your Supabase API key
+- `SUPABASE_JWT_SECRET`: Your Supabase JWT secret
+- `REDIS_HOST`: Redis host (default: redis)
+- `NEXT_PUBLIC_API_URL`: Backend API URL
 
 ## Features
 
-- OAuth 2.0 authentication with Shopify
-- AI-powered image processing
-- Product image management
-- Batch processing capabilities
+- AI-powered image processing:
+  - Background removal
+  - Image enhancement
+  - Format conversion
 - Real-time processing status updates
+- Async task processing with Celery
+- Secure file storage with Supabase
+- Modern, responsive UI
+- Docker-based deployment
+
+## Monitoring
+
+- Celery Flower dashboard available at http://localhost:5555
+- Task status tracking through Supabase
+- Processing logs available in Docker logs
 
 ## Contributing
 

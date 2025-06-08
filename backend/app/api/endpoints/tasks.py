@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from app.services.task import task_service
 from app.models.task import TaskType, TaskStatus
-from app.core.auth import get_current_store
+from app.api.deps import get_current_store
 from app.tasks.image_processing import process_image, bulk_process
 
 router = APIRouter()

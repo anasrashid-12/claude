@@ -1,12 +1,14 @@
 from typing import Dict, Any, Optional, List
 from app.models.task import Task, TaskStatus, TaskType
-from app.core.database import get_db
+from app.core.database import get_async_session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 class TaskRepository:
     def __init__(self):
-        self.db = get_db()
+        self.get_session = get_async_session
 
-    def create(
+    async def create(
         self,
         task_id: str,
         task_type: TaskType,
@@ -22,16 +24,21 @@ class TaskRepository:
             status=status,
             params=params
         )
-        self.db.add(task)
-        self.db.commit()
-        self.db.refresh(task)
-        return task
+        async for session in self.get_session():
+            session.add(task)
+            await session.commit()
+            await session.refresh(task)
+            return task
 
-    def get(self, task_id: str) -> Optional[Task]:
+    async def get(self, task_id: str) -> Optional[Task]:
         """Get task by ID"""
-        return self.db.query(Task).filter(Task.id == task_id).first()
+        async for session in self.get_session():
+            result = await session.execute(
+                select(Task).filter(Task.id == task_id)
+            )
+            return result.scalar_one_or_none()
 
-    def list_by_store(
+    async def list_by_store(
         self,
         store_id: int,
         status: Optional[TaskStatus] = None,
@@ -39,12 +46,16 @@ class TaskRepository:
         offset: int = 0
     ) -> List[Task]:
         """List tasks for a store"""
-        query = self.db.query(Task).filter(Task.store_id == store_id)
+        query = select(Task).filter(Task.store_id == store_id)
         if status:
             query = query.filter(Task.status == status)
-        return query.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
+        query = query.order_by(Task.created_at.desc()).offset(offset).limit(limit)
+        
+        async for session in self.get_session():
+            result = await session.execute(query)
+            return result.scalars().all()
 
-    def update(
+    async def update(
         self,
         task_id: str,
         status: TaskStatus,
@@ -52,15 +63,17 @@ class TaskRepository:
         error_message: str = None
     ) -> Task:
         """Update task status"""
-        task = self.get(task_id)
+        task = await self.get(task_id)
         if task:
-            task.status = status
-            if result is not None:
-                task.result = result
-            if error_message is not None:
-                task.error_message = error_message
-            self.db.commit()
-            self.db.refresh(task)
-        return task
+            async for session in self.get_session():
+                task.status = status
+                if result is not None:
+                    task.result = result
+                if error_message is not None:
+                    task.error_message = error_message
+                await session.commit()
+                await session.refresh(task)
+                return task
+        return None
 
 task_repository = TaskRepository() 

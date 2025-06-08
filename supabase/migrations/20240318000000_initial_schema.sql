@@ -1,12 +1,21 @@
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create enum types
-CREATE TYPE processing_status AS ENUM ('pending', 'processing', 'completed', 'failed');
-CREATE TYPE image_operation AS ENUM ('background_removal', 'resize', 'optimize', 'revert');
+-- Create enum types if they don't exist
+DO $$ BEGIN
+    CREATE TYPE processing_status AS ENUM ('pending', 'processing', 'completed', 'failed');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE image_operation AS ENUM ('background_removal', 'resize', 'optimize', 'revert');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Stores information about connected Shopify stores
-CREATE TABLE stores (
+CREATE TABLE IF NOT EXISTS stores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     shop_domain VARCHAR(255) NOT NULL UNIQUE,
     access_token TEXT,
@@ -19,7 +28,7 @@ CREATE TABLE stores (
 );
 
 -- Stores product information from Shopify
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
     shopify_product_id VARCHAR(255) NOT NULL,
@@ -31,7 +40,7 @@ CREATE TABLE products (
 );
 
 -- Stores information about product images
-CREATE TABLE images (
+CREATE TABLE IF NOT EXISTS images (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID REFERENCES products(id) ON DELETE CASCADE,
     shopify_image_id VARCHAR(255) NOT NULL,
@@ -47,7 +56,7 @@ CREATE TABLE images (
 );
 
 -- Stores image processing history
-CREATE TABLE processing_history (
+CREATE TABLE IF NOT EXISTS processing_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     image_id UUID REFERENCES images(id) ON DELETE CASCADE,
     operation image_operation NOT NULL,
@@ -61,7 +70,7 @@ CREATE TABLE processing_history (
 );
 
 -- Stores image versions for backup
-CREATE TABLE image_versions (
+CREATE TABLE IF NOT EXISTS image_versions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     image_id UUID REFERENCES images(id) ON DELETE CASCADE,
     version_number INTEGER NOT NULL,
@@ -72,7 +81,7 @@ CREATE TABLE image_versions (
 );
 
 -- Stores user settings and preferences
-CREATE TABLE store_settings (
+CREATE TABLE IF NOT EXISTS store_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_id UUID REFERENCES stores(id) ON DELETE CASCADE UNIQUE,
     default_image_settings JSONB DEFAULT '{}'::jsonb,
@@ -83,11 +92,11 @@ CREATE TABLE store_settings (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX idx_images_product_id ON images(product_id);
-CREATE INDEX idx_processing_history_image_id ON processing_history(image_id);
-CREATE INDEX idx_processing_history_status ON processing_history(status);
-CREATE INDEX idx_image_versions_image_id ON image_versions(image_id);
-CREATE INDEX idx_products_store_id ON products(store_id);
+CREATE INDEX IF NOT EXISTS idx_images_product_id ON images(product_id);
+CREATE INDEX IF NOT EXISTS idx_processing_history_image_id ON processing_history(image_id);
+CREATE INDEX IF NOT EXISTS idx_processing_history_status ON processing_history(status);
+CREATE INDEX IF NOT EXISTS idx_image_versions_image_id ON image_versions(image_id);
+CREATE INDEX IF NOT EXISTS idx_products_store_id ON products(store_id);
 
 -- Create updated_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -98,21 +107,25 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_stores_updated_at ON stores;
 CREATE TRIGGER update_stores_updated_at
     BEFORE UPDATE ON stores
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 CREATE TRIGGER update_products_updated_at
     BEFORE UPDATE ON products
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_images_updated_at ON images;
 CREATE TRIGGER update_images_updated_at
     BEFORE UPDATE ON images
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_store_settings_updated_at ON store_settings;
 CREATE TRIGGER update_store_settings_updated_at
     BEFORE UPDATE ON store_settings
     FOR EACH ROW

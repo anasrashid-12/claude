@@ -1,12 +1,7 @@
 import React from 'react';
-import { Frame, Navigation } from '@shopify/polaris';
-import { 
-  HomeMinor, 
-  ImagesMajor,
-  SettingsMajor,
-  AnalyticsMajor 
-} from '@shopify/polaris-icons';
-import Header from './Header';
+import { Frame, Navigation, TopBar, AppProvider } from '@shopify/polaris';
+import { NavigationMenu } from '@shopify/app-bridge-react';
+import { HomeIcon, ImageIcon, SettingsIcon, AnalyticsIcon } from '@shopify/polaris-icons';
 import { useRouter } from 'next/router';
 
 interface LayoutProps {
@@ -18,39 +13,60 @@ export default function Layout({ children }: LayoutProps) {
 
   const navigationItems = [
     {
-      label: 'Dashboard',
-      icon: HomeMinor,
-      url: '/dashboard',
-      selected: router.pathname === '/dashboard',
+      label: 'Home',
+      destination: '/',
+      icon: HomeIcon,
     },
     {
       label: 'Image Gallery',
-      icon: ImagesMajor,
-      url: '/gallery',
-      selected: router.pathname === '/gallery',
+      destination: '/gallery',
+      icon: ImageIcon,
+    },
+    {
+      label: 'Processing Queue',
+      destination: '/queue',
+      icon: ProcessingQueueIcon,
     },
     {
       label: 'Analytics',
-      icon: AnalyticsMajor,
-      url: '/analytics',
-      selected: router.pathname === '/analytics',
+      destination: '/analytics',
+      icon: AnalyticsIcon,
     },
     {
       label: 'Settings',
-      icon: SettingsMajor,
-      url: '/settings',
-      selected: router.pathname === '/settings',
+      destination: '/settings',
+      icon: SettingsIcon,
     },
   ];
 
   return (
-    <Frame
-      navigation={<Navigation location="/" items={navigationItems} />}
-      topBar={<Header />}
-    >
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {children}
-      </main>
-    </Frame>
+    <AppProvider i18n={{}}>
+      <Frame
+        navigation={
+          <Navigation location={router.pathname}>
+            <NavigationMenu 
+              navigationItems={navigationItems}
+              matcher={(link) => router.pathname === link.destination}
+            />
+          </Navigation>
+        }
+        topBar={
+          <TopBar
+            showNavigationToggle
+            userMenu={
+              <TopBar.UserMenu
+                name="Store Owner"
+                detail="My Store"
+                initials="SO"
+              />
+            }
+          />
+        }
+      >
+        <div className="app-content">
+          {children}
+        </div>
+      </Frame>
+    </AppProvider>
   );
 } 

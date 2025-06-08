@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
-from ....models import Shop
-from ....services.shop_service import ShopService
-from ....core.auth import get_current_shop
+from app.models import Shop
+from app.services.shop_service import ShopService
+from app.api.deps import get_current_shop
 
 router = APIRouter()
 

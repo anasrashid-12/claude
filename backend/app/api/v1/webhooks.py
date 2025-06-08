@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from typing import Optional
-from ....services.shop_service import ShopService
-from ....services.webhook_service import WebhookService
-from ....core.auth import verify_webhook_hmac
+from app.services.shop_service import ShopService
+from app.services.webhook_service import WebhookService
+from app.core.shopify_auth import verify_webhook_hmac
 
 router = APIRouter()
 

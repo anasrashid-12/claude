@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Page,
-  Layout,
   Card,
-  Text,
-  Button,
-  BlockStack,
-  Box,
   FormLayout,
-  Select,
   TextField,
-  ChoiceList,
-  Banner
+  Select,
+  Button,
+  Checkbox,
+  Banner,
+  Layout,
+  Text,
 } from '@shopify/polaris';
 
 interface Settings {
@@ -26,149 +24,155 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({
     defaultProcessingType: ['background_removal'],
     autoProcessNewProducts: true,
-    maxImageSize: '10',
+    maxImageSize: '5',
     notificationEmail: '',
-    storageRetentionDays: '30'
+    storageRetentionDays: '30',
   });
-
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch('/api/settings');
+      const data = await response.json();
+      setSettings(data);
+    } catch (err) {
+      setError('Failed to load settings');
+    }
+  };
 
   const handleSettingChange = (field: keyof Settings, value: any) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
   const handleSave = async () => {
     setIsSaving(true);
-    setSaveSuccess(false);
+    setError(null);
+    setSuccessMessage(null);
 
     try {
-      // TODO: Implement API call to save settings
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      setSaveSuccess(true);
-    } catch (error) {
-      console.error('Error saving settings:', error);
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+
+      setSuccessMessage('Settings saved successfully');
+    } catch (err) {
+      setError('Failed to save settings');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Page
-      title="Settings"
-      primaryAction={
-        <Button
-          variant="primary"
-          onClick={handleSave}
-          loading={isSaving}
-        >
-          Save Changes
-        </Button>
-      }
-    >
-      <BlockStack>
-        {saveSuccess && (
-          <Banner
-            title="Settings saved"
-            tone="success"
-            onDismiss={() => setSaveSuccess(false)}
-          />
-        )}
+    <Page title="Settings">
+      <Layout>
+        <Layout.Section>
+          {error && (
+            <Banner status="critical" onDismiss={() => setError(null)}>
+              <p>{error}</p>
+            </Banner>
+          )}
 
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <Box padding="4">
-                <BlockStack>
-                  <Text as="h2" variant="headingMd">
-                    Processing Settings
-                  </Text>
+          {successMessage && (
+            <Banner status="success" onDismiss={() => setSuccessMessage(null)}>
+              <p>{successMessage}</p>
+            </Banner>
+          )}
 
-                  <FormLayout>
-                    <ChoiceList
-                      title="Default Processing Types"
-                      allowMultiple
-                      choices={[
-                        { label: 'Background Removal', value: 'background_removal' },
-                        { label: 'Image Optimization', value: 'optimization' },
-                        { label: 'Auto Resize', value: 'resize' }
-                      ]}
-                      selected={settings.defaultProcessingType}
-                      onChange={(value) => handleSettingChange('defaultProcessingType', value)}
-                    />
+          <Card>
+            <Card.Section>
+              <Text variant="headingMd" as="h2">
+                Image Processing Settings
+              </Text>
+            </Card.Section>
 
-                    <ChoiceList
-                      title="Auto-process New Products"
-                      choices={[
-                        { label: 'Automatically process images for new products', value: 'true' }
-                      ]}
-                      selected={settings.autoProcessNewProducts ? ['true'] : []}
-                      onChange={(value) => handleSettingChange('autoProcessNewProducts', value.includes('true'))}
-                    />
+            <Card.Section>
+              <FormLayout>
+                <Select
+                  label="Default Processing Type"
+                  options={[
+                    { label: 'Background Removal', value: 'background_removal' },
+                    { label: 'Resize', value: 'resize' },
+                    { label: 'Optimize', value: 'optimize' },
+                  ]}
+                  value={settings.defaultProcessingType[0]}
+                  onChange={(value) =>
+                    handleSettingChange('defaultProcessingType', [value])
+                  }
+                  helpText="Default processing type for new images"
+                />
 
-                    <TextField
-                      label="Maximum Image Size (MB)"
-                      type="number"
-                      value={settings.maxImageSize}
-                      onChange={(value) => handleSettingChange('maxImageSize', value)}
-                      autoComplete="off"
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
+                <Checkbox
+                  label="Automatically process new product images"
+                  checked={settings.autoProcessNewProducts}
+                  onChange={(checked) =>
+                    handleSettingChange('autoProcessNewProducts', checked)
+                  }
+                  helpText="Process images automatically when new products are added"
+                />
 
-          <Layout.Section>
-            <Card>
-              <Box padding="4">
-                <BlockStack>
-                  <Text as="h2" variant="headingMd">
-                    Notification Settings
-                  </Text>
+                <TextField
+                  label="Maximum Image Size (MB)"
+                  type="number"
+                  value={settings.maxImageSize}
+                  onChange={(value) => handleSettingChange('maxImageSize', value)}
+                  helpText="Maximum allowed size for uploaded images"
+                  autoComplete="off"
+                />
 
-                  <FormLayout>
-                    <TextField
-                      label="Notification Email"
-                      type="email"
-                      value={settings.notificationEmail}
-                      onChange={(value) => handleSettingChange('notificationEmail', value)}
-                      autoComplete="email"
-                      helpText="Receive notifications when bulk processing is complete"
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
+                <TextField
+                  label="Notification Email"
+                  type="email"
+                  value={settings.notificationEmail}
+                  onChange={(value) =>
+                    handleSettingChange('notificationEmail', value)
+                  }
+                  helpText="Email address for processing notifications"
+                  autoComplete="email"
+                />
 
-          <Layout.Section>
-            <Card>
-              <Box padding="4">
-                <BlockStack>
-                  <Text as="h2" variant="headingMd">
-                    Storage Settings
-                  </Text>
+                <TextField
+                  label="Storage Retention (Days)"
+                  type="number"
+                  value={settings.storageRetentionDays}
+                  onChange={(value) =>
+                    handleSettingChange('storageRetentionDays', value)
+                  }
+                  helpText="Number of days to retain processed images"
+                  autoComplete="off"
+                />
+              </FormLayout>
+            </Card.Section>
 
-                  <FormLayout>
-                    <TextField
-                      label="Storage Retention Period (days)"
-                      type="number"
-                      value={settings.storageRetentionDays}
-                      onChange={(value) => handleSettingChange('storageRetentionDays', value)}
-                      autoComplete="off"
-                      helpText="Number of days to keep processed images in storage"
-                    />
-                  </FormLayout>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
-        </Layout>
-      </BlockStack>
+            <Card.Section>
+              <Button
+                primary
+                onClick={handleSave}
+                loading={isSaving}
+                disabled={isSaving}
+              >
+                Save Settings
+              </Button>
+            </Card.Section>
+          </Card>
+        </Layout.Section>
+      </Layout>
     </Page>
   );
 } 

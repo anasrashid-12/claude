@@ -8,141 +8,107 @@ from app.models.image import ProcessingStatus, ProcessingType
 from app.models.task import TaskType, TaskStatus
 from app.core.storage import storage_client
 import requests
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import time
+import httpx
+from ..database import Database
+from celery import Task
+from rembg import remove
+import cv2
+import numpy as np
+from app.core.celery_app import celery_app
+from app.services.image_processor import ImageProcessor
+import asyncio
 
-@celery_app.task(
-    name="app.tasks.image_processing.process_image",
-    bind=True,
-    max_retries=3,
-    default_retry_delay=60
-)
-def process_image(self, image_id: int) -> Dict[str, Any]:
-    """
-    Process a single image with specified processing types
-    """
+class ImageProcessingTask(Task):
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        """Handle task failure"""
+        image_id = args[0] if args else None
+        if image_id:
+            processor = ImageProcessor()
+            asyncio.run(processor.update_status(
+                image_id=image_id,
+                status=ProcessingStatus.FAILED,
+                error_message=str(exc)
+            ))
+        super().on_failure(exc, task_id, args, kwargs, einfo)
+
+@celery_app.task(base=ImageProcessingTask, bind=True)
+def process_image(
+    self,
+    image_id: str,
+    processing_types: List[ProcessingType],
+    settings: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """Process a single image"""
     try:
-        # Update task status
-        task = task_service.update_status(
-            self.request.id,
-            TaskStatus.STARTED
-        )
-
-        # Get image record
-        image = image_service.get(image_id)
-        if not image:
-            raise ValueError(f"Image {image_id} not found")
-
-        # Update image status
-        image = image_service.update_status(
-            image_id,
-            ProcessingStatus.PROCESSING
-        )
-
-        # Download original image
-        response = requests.get(image.original_url)
-        response.raise_for_status()
-        img = PILImage.open(io.BytesIO(response.content))
-
-        # Process image based on processing types
-        for proc_type in image.processing_types:
-            if proc_type == ProcessingType.BACKGROUND_REMOVAL:
-                img = remove_background(img, image.processing_options)
-            elif proc_type == ProcessingType.RESIZE:
-                img = resize_image(img, image.processing_options)
-            elif proc_type == ProcessingType.OPTIMIZE:
-                img = optimize_image(img, image.processing_options)
-
-        # Save processed image
-        output = io.BytesIO()
-        img.save(output, format=img.format or 'PNG')
-        output.seek(0)
-
-        # Upload to storage
-        filename = f"{image.store_id}/{image.product_id}/{image.image_id}_{image.version}.png"
-        processed_url = storage_client.upload_file(
-            filename,
-            output,
-            content_type="image/png"
-        )
-
-        # Update image record
-        image = image_service.update_status(
-            image_id,
-            ProcessingStatus.COMPLETED,
-            processed_url=processed_url
-        )
-
-        # Update task status
-        task = task_service.update_status(
-            self.request.id,
-            TaskStatus.SUCCESS,
-            result={
-                "processed_url": processed_url,
-                "processing_types": [pt.value for pt in image.processing_types]
-            }
-        )
-
+        processor = ImageProcessor()
+        result = asyncio.run(processor.process_image(
+            image_id=image_id,
+            processing_types=processing_types,
+            settings=settings
+        ))
         return {
             "status": "success",
             "image_id": image_id,
-            "processed_url": processed_url
+            "processed_url": result.current_url
         }
-
     except Exception as e:
-        # Update image status
-        image_service.update_status(
-            image_id,
-            ProcessingStatus.FAILED,
-            error_message=str(e)
-        )
-
-        # Update task status
-        task_service.update_status(
-            self.request.id,
-            TaskStatus.FAILURE,
-            error_message=str(e)
-        )
-
-        # Retry if possible
-        try:
-            self.retry(exc=e)
-        except self.MaxRetriesExceededError:
-            return {
-                "status": "error",
-                "image_id": image_id,
-                "error": str(e)
-            }
+        return {
+            "status": "error",
+            "image_id": image_id,
+            "error": str(e)
+        }
 
 @celery_app.task(
     name="app.tasks.image_processing.bulk_process",
     bind=True
 )
-def bulk_process(self, image_ids: List[int]) -> Dict[str, Any]:
-    """
-    Process multiple images in bulk
-    """
-    results = []
-    for image_id in image_ids:
-        try:
-            result = process_image.delay(image_id)
-            results.append({
-                "image_id": image_id,
-                "task_id": result.id,
-                "status": "queued"
-            })
-        except Exception as e:
-            results.append({
-                "image_id": image_id,
-                "error": str(e),
-                "status": "failed"
-            })
+def bulk_process(
+    self,
+    image_ids: List[str],
+    processing_types: List[ProcessingType],
+    settings: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """Process multiple images"""
+    try:
+        processor = ImageProcessor()
+        results = asyncio.run(processor.bulk_process(
+            image_ids=image_ids,
+            processing_types=processing_types,
+            settings=settings
+        ))
 
-    return {
-        "status": "success",
-        "total": len(image_ids),
-        "results": results
-    }
+        successful = []
+        failed = []
+
+        for result in results:
+            if isinstance(result, Exception):
+                failed.append({
+                    "image_id": image_ids[results.index(result)],
+                    "error": str(result)
+                })
+            else:
+                successful.append({
+                    "image_id": result.id,
+                    "processed_url": result.current_url
+                })
+
+        return {
+            "status": "completed",
+            "successful": successful,
+            "failed": failed,
+            "total_processed": len(successful),
+            "total_failed": len(failed)
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "successful": [],
+            "failed": image_ids
+        }
 
 def remove_background(img: PILImage.Image, options: Dict = None) -> PILImage.Image:
     """

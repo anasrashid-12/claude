@@ -1,21 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  BlockStack,
-  Text,
-  ProgressBar,
   Card,
-  Banner,
-  Spinner,
-  EmptyState,
   ResourceList,
   Badge,
+  ProgressBar,
+  Stack,
+  Text,
+  Banner,
 } from '@shopify/polaris';
-import { get } from '../utils/api';
-import { QueueStatus, QueueItem } from '../types/queue';
 
-interface QueueResponse {
-  success: boolean;
-  error?: string;
 interface QueueItem {
   id: string;
   fileName: string;
@@ -27,141 +20,114 @@ interface QueueItem {
   estimatedTimeRemaining?: number;
 }
 
-interface QueueResponse {
-  success: boolean;
-  error?: string;
-  data?: QueueItem[];
-}
-
 export default function ProcessingQueue() {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const fetchQueue = useCallback(async (isRefresh = false) => {
-    try {
-      setError(null);
-      isRefresh ? setIsRefreshing(true) : setIsLoading(true);
-
-      const data = await get<QueueResponse>('/queue');
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch queue data');
-      }
-
-      setQueueItems(data.data || []);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch queue';
-      console.error('Failed to fetch queue:', error);
-      setError(new Error(errorMessage));
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchQueue();
-    const interval = setInterval(() => fetchQueue(true), 5000); // Poll every 5 seconds
+    fetchQueueItems();
+    const interval = setInterval(fetchQueueItems, 5000); // Poll every 5 seconds
     return () => clearInterval(interval);
-  }, [fetchQueue]);
+  }, []);
+
+  const fetchQueueItems = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/queue');
+      const data = await response.json();
+      setQueueItems(data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load queue items');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderItem = (item: QueueItem) => {
+    return (
+      <ResourceList.Item id={item.id}>
+        <Stack vertical>
+          <Stack alignment="center" distribution="equalSpacing">
+            <Text variant="bodyMd" fontWeight="bold">
+              {item.fileName}
+            </Text>
+            <Badge status={getStatusBadge(item.status)}>
+              {item.status}
+            </Badge>
+          </Stack>
+          
+          {item.status === 'processing' && (
+            <Stack vertical spacing="tight">
+              <ProgressBar
+                progress={item.progress}
+                size="small"
+                tone={getProgressTone(item.progress)}
+              />
+              {item.estimatedTimeRemaining && (
+                <Text variant="bodySm" color="subdued">
+                  Estimated time remaining: {formatTime(item.estimatedTimeRemaining)}
+                </Text>
+              )}
+            </Stack>
+          )}
+
+          {item.error && (
+            <Banner status="critical">
+              <Text variant="bodySm">{item.error}</Text>
+            </Banner>
+          )}
+        </Stack>
+      </ResourceList.Item>
+    );
+  };
 
   const getProgressTone = (progress: number): 'success' | 'highlight' => {
-    return progress === 100 ? 'success' : 'highlight';
+    return progress >= 90 ? 'success' : 'highlight';
   };
 
-  const getStatusDetails = (item: QueueItem) => {
-    if (item.status === 'processing') {
-      return (
-        <BlockStack gap="200">
-          <ProgressBar
-            progress={Math.round(item.progress)}
-            size="small"
-            tone={getProgressTone(item.progress)}
-          />
-          {item.estimatedTimeRemaining && (
-            <Text as="p" variant="bodySm" tone="subdued">
-              Estimated time remaining: {Math.ceil(item.estimatedTimeRemaining / 1000)}s
-            </Text>
-          )}
-        </BlockStack>
-      );
+  const getStatusBadge = (status: QueueItem['status']): 'success' | 'attention' | 'warning' | 'critical' => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'processing':
+        return 'attention';
+      case 'queued':
+        return 'warning';
+      case 'failed':
+        return 'critical';
+      default:
+        return 'warning';
     }
-
-    if (item.status === 'failed') {
-      return (
-        <Text as="p" variant="bodySm" tone="critical">
-          {item.error || 'Processing failed'}
-          {item.retryCount && ` (Retry ${item.retryCount})`}
-        </Text>
-      );
-    }
-
-    return null;
   };
 
-  if (isLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
-        <Spinner size="large" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Banner tone="critical" onDismiss={() => setError(null)}>
-        <p>Failed to load processing queue: {error.message}</p>
-      </Banner>
-    );
-  }
-
-  if (queueItems.length === 0) {
-    return (
-      <Card>
-        <EmptyState
-          heading="No active jobs"
-          image="/empty-state-images/no-jobs.svg"
-        >
-          <p>There are no images being processed at the moment.</p>
-        </EmptyState>
-      </Card>
-    );
-  }
+  const formatTime = (seconds: number): string => {
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${Math.round(seconds % 60)}s`;
+  };
 
   return (
-    <Card>
-      <BlockStack gap="400">
-        <Text as="h2" variant="headingMd">Processing Queue</Text>
-        {queueItems.map((item) => (
-          <Card key={item.id}>
-            <BlockStack gap="200">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text as="span" variant="bodyMd" fontWeight="bold">{item.fileName}</Text>
-                <Text
-                  as="span"
-                  variant="bodySm"
-                  tone={
-                    item.status === 'failed'
-                      ? 'critical'
-                      : item.status === 'completed'
-                      ? 'success'
-                      : 'subdued'
-                  }
-                >
-                  {item.status}
-                </Text>
-              </div>
-              
-              {getStatusDetails(item)}
+    <Card title="Processing Queue">
+      {error && (
+        <Banner status="critical">
+          <p>{error}</p>
+        </Banner>
+      )}
 
-              <Text as="p" variant="bodySm" tone="subdued">
-                Started: {new Date(item.createdAt).toLocaleString()}
-              </Text>
-            </BlockStack>
-          </Card>
-        ))}
-      </BlockStack>
+      <ResourceList
+        items={queueItems}
+        renderItem={renderItem}
+        loading={isLoading}
+        emptyState={
+          <Stack vertical alignment="center" distribution="center">
+            <Text variant="bodyMd" color="subdued">
+              No items in queue
+            </Text>
+          </Stack>
+        }
+      />
     </Card>
   );
 } 

@@ -1,16 +1,16 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
 from dotenv import load_dotenv
-import os
-from .api.routes import shopify
-from .core.redis_client import get_redis
-from .database import Database
-from prometheus_client import make_asgi_app
+
 from app.core.config import settings
-from app.api.v1.router import api_router
+from app.core.supabase import SupabaseClient
 from app.core.exceptions import AppException
+from app.core.middleware import RequestLoggingMiddleware, RateLimitMiddleware
+from app.api.v1.router import api_router
+from app.core.storage import mount_storage
 
 # Load environment variables
 load_dotenv()
@@ -21,20 +21,28 @@ app = FastAPI(
     description="AI Image Processing API for Shopify stores",
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Add Prometheus metrics
-metrics_app = make_asgi_app()
-app.mount("/metrics", metrics_app)
+# Add security middleware
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
+
+# Add custom middleware
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# Mount storage directory for serving files
+if settings.STORAGE_PROVIDER == "local":
+    mount_storage(app)
 
 # Error handling middleware
 @app.middleware("http")
@@ -51,8 +59,7 @@ async def errors_handling(request: Request, call_next):
         )
 
 # Include routers
-app.include_router(shopify.router)
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Exception handler
 @app.exception_handler(AppException)
@@ -68,27 +75,21 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    """
+    Health check endpoint
+    """
     try:
-        # Check database connection
-        db = Database()
-        await db.client.from_('stores').select('*').limit(1).execute()
+        # Check Supabase connection
+        with SupabaseClient.get_connection() as supabase:
+            supabase.table('stores').select('*').limit(1).execute()
         db_status = "connected"
     except Exception as e:
         db_status = f"error: {str(e)}"
-
-    try:
-        # Check Redis connection
-        redis = get_redis()
-        redis.ping()
-        redis_status = "connected"
-    except Exception as e:
-        redis_status = f"error: {str(e)}"
 
     return {
         "status": "healthy",
         "services": {
             "database": db_status,
-            "redis": redis_status,
         }
     }
 
