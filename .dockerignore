@@ -1,0 +1,53 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/env
+**/venv
+
+# Environment files
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+
+# Development
+**/.vscode
+**/.idea
+**/*.log
+**/npm-debug.log*
+
+# Build outputs
+**/build
+**/dist
+**/.next
+**/_next
+**/out
+
+# Docker
+**/Dockerfile*
+**/.dockerignore
+**/docker-compose*
+
+# Testing
+**/coverage
+**/.coverage
+**/htmlcov
+**/.pytest_cache
+**/.tox
+
+# Documentation
+**/docs
+**/README.md
+**/LICENSE
+
+# Temporary files
+**/.DS_Store
+**/Thumbs.db 

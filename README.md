@@ -1,34 +1,34 @@
-# Shopify AI Image Processing Application
+# Shopify AI Image Processing App
 
-A modern application that leverages AI to process and enhance product images, built with Next.js, FastAPI, and Supabase.
+A powerful Shopify app that provides AI-powered image processing capabilities for e-commerce stores.
+
+## Features
+
+- Seamless Shopify integration
+- AI-powered image processing
+- Batch processing support
+- Version control for images
+- Real-time processing status
+- Secure authentication and authorization
 
 ## Tech Stack
 
-- Frontend: Next.js with Tailwind CSS
-- Backend: FastAPI with Celery workers
-- Database: Supabase
-- Image Processing: rembg, OpenCV
-- Infrastructure: Docker, Redis
-
-## Project Structure
-
-```
-├── frontend/          # Next.js frontend application
-├── backend/          # FastAPI backend service
-├── supabase/         # Database migrations and configurations
-├── docs/            # Documentation
-└── monitoring/      # Monitoring configurations (Flower)
-```
+- **Frontend**: NextJS
+- **Backend**: FastAPI (Python)
+- **Database**: Supabase (PostgreSQL)
+- **Task Queue**: Celery with Redis
+- **Storage**: Supabase Storage / S3
+- **AI Processing**: Custom AI Service
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Node.js 18.x or later (for local development)
-- Python >=3.10,<3.12 (for local development)
-- Supabase account
-- Poetry (Python dependency management)
+- Python 3.9+
+- Node.js 18+
+- Redis
+- Shopify Partner Account
+- Supabase Account
 
-## Quick Start with Docker
+## Setup
 
 1. Clone the repository:
 ```bash
@@ -36,94 +36,100 @@ git clone https://github.com/yourusername/shopify-ai-image-app.git
 cd shopify-ai-image-app
 ```
 
-2. Set up environment variables:
-   - Copy `.env.example` to `.env`
-   - Fill in your Supabase credentials and other required variables
-
-3. Start the application:
+2. Set up backend environment:
 ```bash
-docker-compose up --build
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-The application will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
-- Celery Flower: http://localhost:5555
+3. Create a `.env` file in the backend directory:
+```env
+# Base Configuration
+DEBUG=True
+PROJECT_NAME="Shopify AI Image App"
+VERSION="1.0.0"
 
-## Local Development Setup
+# Shopify Configuration
+SHOPIFY_API_KEY=your_api_key
+SHOPIFY_API_SECRET=your_api_secret
+SHOPIFY_APP_URL=https://your-app-url.com
+SHOPIFY_SCOPES="write_products,write_files,read_files"
 
-1. Install dependencies:
-```bash
-# Frontend
-cd frontend
-npm install
-cd ..
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+SUPABASE_JWT_SECRET=your_jwt_secret
 
-# Backend
-cd backend
-poetry install
-cd ..
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Security
+JWT_SECRET_KEY=your_jwt_secret
+JWT_ALGORITHM=HS256
+
+# Storage Configuration
+STORAGE_PROVIDER=supabase  # or 's3'
 ```
 
-2. Start the services:
+4. Start the backend server:
 ```bash
-# Start all services with Docker
-docker-compose up
-
-# Or start services individually:
-# Frontend
-cd frontend
-npm run dev
-
-# Backend
-cd backend
-poetry run uvicorn app.main:app --reload
-
-# Celery Worker
-cd backend
-poetry run celery -A app.core.celery_app worker -Q image_processing
+uvicorn app.main:app --reload
 ```
 
-## Environment Variables
+5. Start Redis server (required for Celery):
+```bash
+redis-server
+```
 
-Required environment variables:
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_KEY`: Your Supabase API key
-- `SUPABASE_JWT_SECRET`: Your Supabase JWT secret
-- `REDIS_HOST`: Redis host (default: redis)
-- `NEXT_PUBLIC_API_URL`: Backend API URL
+6. Start Celery worker:
+```bash
+celery -A app.worker worker --loglevel=info
+```
 
-## Features
+## Development
 
-- AI-powered image processing:
-  - Background removal
-  - Image enhancement
-  - Format conversion
-- Real-time processing status updates
-- Async task processing with Celery
-- Secure file storage with Supabase
-- Modern, responsive UI
-- Docker-based deployment
+### Backend API Documentation
 
-## Monitoring
+Once the backend server is running, you can access:
+- Swagger UI: http://localhost:8000/api/docs
+- ReDoc: http://localhost:8000/api/redoc
 
-- Celery Flower dashboard available at http://localhost:5555
-- Task status tracking through Supabase
-- Processing logs available in Docker logs
+### Database Migrations
+
+The project uses Supabase migrations. To apply migrations:
+
+1. Install Supabase CLI
+2. Run:
+```bash
+supabase db reset
+```
+
+## Deployment
+
+1. Set up your production environment variables
+2. Deploy the backend to your chosen platform
+3. Configure Shopify app settings in your Partner Dashboard
+4. Update the OAuth redirect URLs
+
+## Security
+
+- All API endpoints are protected with JWT authentication
+- Shopify webhooks are verified using HMAC validation
+- Sensitive data is encrypted at rest
+- Rate limiting is implemented on all endpoints
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For support, please open an issue in the GitHub repository.
+This project is licensed under the MIT License - see the LICENSE file for details.

@@ -2,29 +2,42 @@ from datetime import datetime
 from typing import Optional, Dict
 from pydantic import BaseModel, Field, UUID4, HttpUrl
 
-class StoreBase(BaseModel):
-    """Base Store model"""
+class Store(BaseModel):
+    id: Optional[UUID4] = None
     shop_domain: str
-    access_token: Optional[str] = None
-    is_active: bool = True
-    plan_type: Optional[str] = None
-    api_usage_count: int = 0
-    last_sync_at: Optional[datetime] = None
+    access_token: str
+    shop_name: str
+    email: str
+    country: str
+    currency: str
+    status: str  # 'active', 'inactive', 'suspended'
+    webhook_url: Optional[str] = None
+    subscription_status: Optional[str] = None  # 'trial', 'active', 'cancelled'
+    trial_ends_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-class StoreCreate(StoreBase):
-    """Store creation model"""
-    pass
+class StoreCreate(BaseModel):
+    shop_domain: str
+    access_token: str
+    shop_name: str
+    email: str
+    country: str = ""
+    currency: str = "USD"
+    status: str = "active"
 
 class StoreUpdate(BaseModel):
-    """Store update model"""
-    access_token: Optional[str] = None
-    is_active: Optional[bool] = None
-    plan_type: Optional[str] = None
-    api_usage_count: Optional[int] = None
-    last_sync_at: Optional[datetime] = None
+    shop_name: Optional[str] = None
+    email: Optional[str] = None
+    country: Optional[str] = None
+    currency: Optional[str] = None
+    status: Optional[str] = None
+    webhook_url: Optional[str] = None
+    subscription_status: Optional[str] = None
+    trial_ends_at: Optional[datetime] = None
 
 class StoreSettings(BaseModel):
     """Store settings model"""

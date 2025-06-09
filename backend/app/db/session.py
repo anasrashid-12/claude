@@ -2,6 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import Session
+from supabase import create_client, Client
+from functools import lru_cache
 
 from app.core.config import settings
 
@@ -40,4 +42,12 @@ async def get_async_db() -> AsyncSession:
         try:
             yield session
         finally:
-            await session.close() 
+            await session.close()
+
+@lru_cache()
+def get_supabase_client() -> Client:
+    """Get a cached Supabase client instance."""
+    return create_client(
+        settings.SUPABASE_URL,
+        settings.SUPABASE_KEY
+    ) 

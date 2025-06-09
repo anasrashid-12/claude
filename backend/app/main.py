@@ -11,6 +11,7 @@ from app.core.exceptions import AppException
 from app.core.middleware import RequestLoggingMiddleware, RateLimitMiddleware
 from app.api.v1.router import api_router
 from app.core.storage import mount_storage
+from app.api.v1.auth import shopify
 
 # Load environment variables
 load_dotenv()
@@ -60,6 +61,11 @@ async def errors_handling(request: Request, call_next):
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(
+    shopify.router,
+    prefix=f"{settings.API_V1_STR}/auth",
+    tags=["auth"]
+)
 
 # Exception handler
 @app.exception_handler(AppException)

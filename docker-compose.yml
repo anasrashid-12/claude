@@ -1,49 +1,6 @@
 version: '3.8'
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - AI_API_URL=http://ai-service:8001
-      - AI_API_KEY=${AI_API_KEY}
-      - SHOPIFY_API_KEY=${SHOPIFY_API_KEY}
-      - SHOPIFY_API_SECRET=${SHOPIFY_API_SECRET}
-      - SHOPIFY_APP_URL=${SHOPIFY_APP_URL}
-      - DEBUG=True
-      - LOG_LEVEL=DEBUG
-    depends_on:
-      - redis
-      - ai-service
-    networks:
-      - app-network
-
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
-    volumes:
-      - ./ai-service:/app
-    environment:
-      - LOG_LEVEL=INFO
-    networks:
-      - app-network
-
   frontend:
     build:
       context: ./frontend
@@ -54,72 +11,69 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_KEY}
-      - NEXT_PUBLIC_SHOPIFY_API_KEY=${SHOPIFY_API_KEY}
-      - NEXT_PUBLIC_SHOPIFY_APP_URL=${SHOPIFY_APP_URL}
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8001
+    networks:
+      - shopify-ai-network
     depends_on:
-      - backend
+      - ai-service
+
+  ai-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - shopify-ai-network
+    depends_on:
+      - redis
+
+  ai-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: celery -A main worker --loglevel=info
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - shopify-ai-network
+    depends_on:
+      - redis
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
     networks:
-      - app-network
-    command: redis-server --appendonly yes
-
-  celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A app.core.celery_app worker --loglevel=info
-    volumes:
-      - ./backend:/app
-    environment:
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - AI_API_URL=http://ai-service:8001
-      - AI_API_KEY=${AI_API_KEY}
-      - DEBUG=True
-      - LOG_LEVEL=DEBUG
-    depends_on:
-      - redis
-      - ai-service
-    networks:
-      - app-network
+      - shopify-ai-network
 
   flower:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: celery -A app.core.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    image: mher/flower:1.2
+    command: celery flower
     ports:
       - "5555:5555"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FLOWER_PORT=5555
+    networks:
+      - shopify-ai-network
     depends_on:
       - redis
-      - celery-worker
-    networks:
-      - app-network
-
-volumes:
-  redis-data:
+      - ai-worker
 
 networks:
-  app-network:
-    driver: bridge 
+  shopify-ai-network:
+    driver: bridge
+
+volumes:
+  redis-data: 

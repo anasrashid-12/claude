@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-end-rgb));
+}
+
+/* Override Polaris styles for better integration */
+.Polaris-Page {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 1rem !important;
+}
+
+.Polaris-Card {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+}
+
+/* Custom loading spinner */
+.loading-spinner {
+  @apply animate-spin rounded-full h-6 w-6 border-2 border-gray-300 border-t-indigo-600;
+} 
