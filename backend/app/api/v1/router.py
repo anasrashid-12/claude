@@ -1,11 +1,10 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, stores, images, tasks
+from app.api.v1.endpoints import auth, images, tasks
 
 # Create the main v1 router
-router = APIRouter(prefix="/v1")
+api_router = APIRouter()
 
 # Include all route modules
-router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-router.include_router(stores.router, prefix="/stores", tags=["Stores"])
-router.include_router(images.router, prefix="/images", tags=["Images"])
-router.include_router(tasks.router, prefix="/tasks", tags=["Tasks"]) 
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(images.router, prefix="/images", tags=["images"])
+api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"]) 

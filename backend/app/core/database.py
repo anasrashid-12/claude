@@ -1,90 +1,114 @@
+from typing import Optional
 from supabase import create_client, Client
+from functools import lru_cache
 from app.core.config import settings
-from app.core.exceptions import DatabaseError
-from contextlib import contextmanager
-from typing import Generator, AsyncGenerator
-import httpx
-from supabase.client import ClientOptions
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+import logging
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from contextlib import contextmanager
+import os
 
-# Create SQLAlchemy models base class
+logger = logging.getLogger(__name__)
+
+# SQLAlchemy setup
+engine = create_engine(settings.SUPABASE_DB_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True
-)
+@lru_cache()
+def get_supabase_client() -> Optional[Client]:
+    """Get a cached Supabase client instance"""
+    try:
+        if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+            logger.warning("Supabase URL or key not configured")
+            return None
+        return create_client(
+            supabase_url=settings.SUPABASE_URL,
+            supabase_key=settings.SUPABASE_KEY
+        )
+    except Exception as e:
+        logger.error(f"Failed to create Supabase client: {e}")
+        return None
 
-# Create async session factory
-async_session_factory = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# Initialize Supabase client
+db = get_supabase_client()
 
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+def get_db():
+    """Get database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@contextmanager
+def get_db_context():
+    """Context manager for database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def init_database():
+    """Initialize database connection"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        raise
 
 class Database:
-    _instance = None
-    _client: Client = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Database, cls).__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
-
-    def _initialize(self):
+    """Database utility class for common operations"""
+    
+    @staticmethod
+    async def execute_query(table: str, query_fn, *args, **kwargs) -> Optional[dict]:
+        """Execute a query using the provided query function"""
         try:
-            if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-                raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set")
-            
-            options = ClientOptions(
-                postgrest_client_timeout=10,
-                storage_client_timeout=10,
-                schema="public"
-            )
-            
-            self._client = create_client(
-                supabase_url=settings.SUPABASE_URL,
-                supabase_key=settings.SUPABASE_KEY,
-                options=options
-            )
+            result = query_fn(db.table(table), *args, **kwargs).execute()
+            return result.data if result else None
         except Exception as e:
-            raise DatabaseError(f"Failed to initialize database connection: {str(e)}")
+            logger.error(f"Query execution failed: {e}")
+            raise
 
-    @property
-    def client(self) -> Client:
-        if not self._client:
-            self._initialize()
-        return self._client
-
-    def get_client(self) -> Client:
-        return self.client
-
-    @contextmanager
-    def transaction(self) -> Generator[Client, None, None]:
-        """
-        Context manager for database transactions.
-        Usage:
-            with db.transaction() as tx:
-                tx.table("users").insert({"name": "John"}).execute()
-        """
+    @staticmethod
+    async def get_by_id(table: str, id: str) -> Optional[dict]:
+        """Get a record by ID"""
         try:
-            yield self.client
-            # Note: Supabase-py doesn't support explicit transaction management yet
-            # This is a placeholder for future implementation
+            result = db.table(table).select('*').eq('id', id).execute()
+            return result.data[0] if result.data else None
         except Exception as e:
-            raise DatabaseError(f"Transaction failed: {str(e)}")
+            logger.error(f"Failed to get record by ID: {e}")
+            raise
 
-# Create a global instance
-db = Database() 
+    @staticmethod
+    async def create(table: str, data: dict) -> Optional[dict]:
+        """Create a new record"""
+        try:
+            result = db.table(table).insert(data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error(f"Failed to create record: {e}")
+            raise
+
+    @staticmethod
+    async def update(table: str, id: str, data: dict) -> Optional[dict]:
+        """Update a record by ID"""
+        try:
+            result = db.table(table).update(data).eq('id', id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            logger.error(f"Failed to update record: {e}")
+            raise
+
+    @staticmethod
+    async def delete(table: str, id: str) -> bool:
+        """Delete a record by ID"""
+        try:
+            result = db.table(table).delete().eq('id', id).execute()
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Failed to delete record: {e}")
+            raise 

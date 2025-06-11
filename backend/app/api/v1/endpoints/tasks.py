@@ -1,89 +1,95 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
-from app.services.task import task_service
-from app.models.task import Task, TaskType
-from app.models.store import Store
-from app.core.exceptions import NotFoundError, ValidationError
-from typing import List, Optional, Dict
-from app.api.deps import get_current_store
+from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+from app.models.task import Task, TaskStatus, TaskType
+from app.services.task import TaskService
+from app.core.database import get_db
+from sqlalchemy.orm import Session
+from uuid import UUID
 
 router = APIRouter()
 
-@router.get("", response_model=List[Task])
+def get_task_service(db: Session = Depends(get_db)) -> TaskService:
+    return TaskService(db)
+
+@router.get("", response_model=List[dict])
 async def list_tasks(
-    store: Store = Depends(get_current_store),
-    skip: int = 0,
+    store_id: UUID,
+    status: Optional[TaskStatus] = None,
     limit: int = 100,
-    task_type: Optional[TaskType] = None,
-    status: Optional[str] = None
+    offset: int = 0,
+    task_service: TaskService = Depends(get_task_service)
 ):
-    """
-    List tasks for a store
-    """
-    filters = {"store_id": store.id}
-    if task_type:
-        filters["task_type"] = task_type
-    if status:
-        filters["status"] = status
-    
-    return await task_service.list(
-        filters=filters,
-        skip=skip,
-        limit=limit
-    )
-
-@router.get("/active", response_model=List[Task])
-async def get_active_tasks(
-    store: Store = Depends(get_current_store),
-    task_type: Optional[TaskType] = None
-):
-    """
-    Get active tasks for a store
-    """
-    return await task_service.get_active_tasks(store.id, task_type)
-
-@router.get("/stats", response_model=Dict)
-async def get_task_stats(
-    store: Store = Depends(get_current_store)
-):
-    """
-    Get task statistics for a store
-    """
-    return await task_service.get_task_stats(store.id)
-
-@router.get("/{task_id}", response_model=Task)
-async def get_task(
-    task_id: int,
-    store: Store = Depends(get_current_store)
-):
-    """
-    Get task by ID
-    """
+    """List tasks for a store"""
     try:
-        task = await task_service.get(task_id)
-        if task.store_id != store.id:
-            raise NotFoundError("Task not found")
-        return task
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        tasks = task_service.list_tasks(
+            store_id=store_id,
+            status=status,
+            limit=limit,
+            offset=offset
+        )
+        return [task.to_dict() for task in tasks]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{task_id}", response_model=dict)
+async def get_task(
+    task_id: UUID,
+    task_service: TaskService = Depends(get_task_service)
+):
+    """Get a task by ID"""
+    task = task_service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.to_dict()
+
+@router.post("", response_model=dict)
+async def create_task(
+    store_id: UUID,
+    task_type: TaskType,
+    celery_task_id: Optional[str] = None,
+    metadata: Optional[dict] = None,
+    task_service: TaskService = Depends(get_task_service)
+):
+    """Create a new task"""
+    try:
+        task = task_service.create_task(
+            store_id=store_id,
+            task_type=task_type,
+            celery_task_id=celery_task_id,
+            metadata=metadata
+        )
+        return task.to_dict()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{task_id}", response_model=dict)
+async def update_task(
+    task_id: UUID,
+    status: Optional[TaskStatus] = None,
+    progress: Optional[int] = None,
+    result: Optional[dict] = None,
+    error: Optional[str] = None,
+    task_service: TaskService = Depends(get_task_service)
+):
+    """Update a task"""
+    task = task_service.update_task(
+        task_id=task_id,
+        status=status,
+        progress=progress,
+        result=result,
+        error=error
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.to_dict()
 
 @router.delete("/{task_id}")
-async def cancel_task(
-    task_id: int,
-    store: Store = Depends(get_current_store),
-    terminate: bool = False
+async def delete_task(
+    task_id: UUID,
+    task_service: TaskService = Depends(get_task_service)
 ):
-    """
-    Cancel a task
-    """
-    try:
-        task = await task_service.get(task_id)
-        if task.store_id != store.id:
-            raise NotFoundError("Task not found")
-        
-        success = task_service.revoke_task(task.celery_task_id, terminate)
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to cancel task")
-        
-        return {"message": "Task cancelled successfully"}
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) 
+    """Delete a task"""
+    success = task_service.delete_task(task_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": "Task deleted successfully"} 

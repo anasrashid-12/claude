@@ -1,38 +1,48 @@
 -- Add missing enum type for user roles if it doesn't exist
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('owner', 'admin', 'member');
+    CREATE TYPE user_role AS ENUM ('owner', 'admin', 'editor');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
+-- Drop all existing policies first to avoid conflicts
+DROP POLICY IF EXISTS "Store admins can update store settings" ON store_settings;
+DROP POLICY IF EXISTS "Store admins can manage batch jobs" ON batch_jobs;
+DROP POLICY IF EXISTS "Store admins can update their stores" ON stores;
+DROP POLICY IF EXISTS "Store admins can manage store users" ON store_users;
+DROP POLICY IF EXISTS "Users can view their store's batch jobs" ON batch_jobs;
+DROP POLICY IF EXISTS "Users can view their store's batch job items" ON batch_job_items;
+DROP POLICY IF EXISTS "Authenticated users can access original images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can access processed images" ON storage.objects;
+
 -- First, update existing roles to match the enum values
 UPDATE store_users 
 SET role = CASE 
-    WHEN role = 'member' THEN 'member'
-    WHEN role = 'admin' THEN 'admin'
-    ELSE 'member'
+    WHEN role::text = 'editor' THEN 'editor'::store_user_role
+    WHEN role::text = 'admin' THEN 'admin'::store_user_role
+    ELSE 'editor'::store_user_role
 END;
 
 -- Create a temporary column with the new type
 ALTER TABLE store_users 
-ADD COLUMN role_enum user_role;
+ADD COLUMN role_enum store_user_role;
 
 -- Copy data to the new column
 UPDATE store_users 
-SET role_enum = role::user_role;
+SET role_enum = role;
 
 -- Drop the old column
 ALTER TABLE store_users 
 DROP COLUMN role;
 
--- Set constraints on the new column
-ALTER TABLE store_users 
-ALTER COLUMN role_enum SET NOT NULL,
-ALTER COLUMN role_enum SET DEFAULT 'member';
-
--- Rename the new column
+-- Rename the new column to role
 ALTER TABLE store_users 
 RENAME COLUMN role_enum TO role;
+
+-- Set constraints on the new column
+ALTER TABLE store_users 
+ALTER COLUMN role SET NOT NULL,
+ALTER COLUMN role SET DEFAULT 'editor'::store_user_role;
 
 -- Add missing indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_store_users_user_id ON store_users(user_id);
@@ -93,31 +103,20 @@ CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON batch_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_batch_job_items_batch_job_id ON batch_job_items(batch_job_id);
 CREATE INDEX IF NOT EXISTS idx_batch_job_items_status ON batch_job_items(status);
 
--- Create trigger for batch_jobs updated_at
-CREATE TRIGGER update_batch_jobs_updated_at
-    BEFORE UPDATE ON batch_jobs
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Create trigger for batch_job_items updated_at
-CREATE TRIGGER update_batch_job_items_updated_at
-    BEFORE UPDATE ON batch_job_items
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
 -- Enable RLS on new tables
 ALTER TABLE batch_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batch_job_items ENABLE ROW LEVEL SECURITY;
 
--- Add RLS policies for batch_jobs
-CREATE POLICY "Users can view their store's batch jobs"
-    ON batch_jobs
-    FOR SELECT
+-- Create all policies with proper role checks
+CREATE POLICY "Store admins can update store settings"
+    ON store_settings
+    FOR ALL
     USING (
         EXISTS (
             SELECT 1 FROM store_users su 
-            WHERE su.store_id = batch_jobs.store_id 
+            WHERE su.store_id = store_settings.store_id 
             AND su.user_id = auth.uid()
+            AND su.role IN ('owner'::store_user_role, 'admin'::store_user_role)
         )
     );
 
@@ -129,11 +128,45 @@ CREATE POLICY "Store admins can manage batch jobs"
             SELECT 1 FROM store_users su 
             WHERE su.store_id = batch_jobs.store_id 
             AND su.user_id = auth.uid()
-            AND su.role IN ('admin', 'owner')
+            AND su.role IN ('owner'::store_user_role, 'admin'::store_user_role)
         )
     );
 
--- Add RLS policies for batch_job_items
+CREATE POLICY "Store admins can update their stores"
+    ON stores
+    FOR UPDATE
+    USING (
+        EXISTS (
+            SELECT 1 FROM store_users su 
+            WHERE su.store_id = stores.id 
+            AND su.user_id = auth.uid()
+            AND su.role IN ('owner'::store_user_role, 'admin'::store_user_role)
+        )
+    );
+
+CREATE POLICY "Store admins can manage store users"
+    ON store_users
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM store_users su 
+            WHERE su.store_id = store_users.store_id 
+            AND su.user_id = auth.uid()
+            AND su.role IN ('owner'::store_user_role, 'admin'::store_user_role)
+        )
+    );
+
+CREATE POLICY "Users can view their store's batch jobs"
+    ON batch_jobs
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM store_users su 
+            WHERE su.store_id = batch_jobs.store_id 
+            AND su.user_id = auth.uid()
+        )
+    );
+
 CREATE POLICY "Users can view their store's batch job items"
     ON batch_job_items
     FOR SELECT
@@ -146,12 +179,14 @@ CREATE POLICY "Users can view their store's batch job items"
         )
     );
 
--- Add storage bucket for original images if it doesn't exist
+-- Add storage buckets if they don't exist
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('original-images', 'original-images', false)
+VALUES 
+    ('original-images', 'original-images', false),
+    ('processed-images', 'processed-images', false)
 ON CONFLICT (id) DO NOTHING;
 
--- Add storage policy for original images
+-- Add storage policies
 CREATE POLICY "Authenticated users can access original images"
     ON storage.objects
     FOR ALL
@@ -162,4 +197,59 @@ CREATE POLICY "Authenticated users can access original images"
             SELECT 1 FROM store_users su
             WHERE su.user_id = auth.uid()
         )
-    ); 
+    );
+
+CREATE POLICY "Authenticated users can access processed images"
+    ON storage.objects
+    FOR ALL
+    USING (
+        bucket_id = 'processed-images'
+        AND auth.role() = 'authenticated'
+        AND EXISTS (
+            SELECT 1 FROM store_users su
+            WHERE su.user_id = auth.uid()
+        )
+    );
+
+-- Create triggers for tables that need them (IF NOT EXISTS)
+DO $$ BEGIN
+    -- Images table trigger
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_images_updated_at') THEN
+        CREATE TRIGGER update_images_updated_at
+            BEFORE UPDATE ON images
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    -- Processing history trigger
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_processing_history_updated_at') THEN
+        CREATE TRIGGER update_processing_history_updated_at
+            BEFORE UPDATE ON processing_history
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    -- Batch jobs trigger
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_batch_jobs_updated_at') THEN
+        CREATE TRIGGER update_batch_jobs_updated_at
+            BEFORE UPDATE ON batch_jobs
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    -- Batch job items trigger
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_batch_job_items_updated_at') THEN
+        CREATE TRIGGER update_batch_job_items_updated_at
+            BEFORE UPDATE ON batch_job_items
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+
+    -- Processing tasks trigger
+    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_processing_tasks_updated_at') THEN
+        CREATE TRIGGER update_processing_tasks_updated_at
+            BEFORE UPDATE ON processing_tasks
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+    END IF;
+END $$; 

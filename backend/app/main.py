@@ -1,34 +1,60 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import List, Optional
 import uvicorn
 from dotenv import load_dotenv
+import os
+import logging
 
-from app.core.config import settings
+from app.core.config import settings, get_settings
 from app.core.supabase import SupabaseClient
 from app.core.exceptions import AppException
 from app.core.middleware import RequestLoggingMiddleware, RateLimitMiddleware
 from app.api.v1.router import api_router
 from app.core.storage import mount_storage
 from app.api.v1.auth import shopify
+from app.core.celery_app import celery_app
+from app.core.security import verify_token
+from app.core.database import get_supabase_client, init_database
+from app.api.v1.endpoints import image_processing
+from app.core.monitoring.prometheus import setup_monitoring
 
 # Load environment variables
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    version=settings.PROJECT_VERSION,
-    description="AI Image Processing API for Shopify stores",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    description="""
+    Shopify AI Image Processing App API
+    
+    This API provides endpoints for:
+    * Image processing and optimization
+    * Background removal
+    * Bulk image operations
+    * Task management and monitoring
+    * Store management and authentication
+    """,
+    version=settings.VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
+
+# Security
+security = HTTPBearer()
 
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,18 +71,19 @@ app.add_middleware(RateLimitMiddleware)
 if settings.STORAGE_PROVIDER == "local":
     mount_storage(app)
 
+# Add monitoring
+setup_monitoring(app)
+
 # Error handling middleware
 @app.middleware("http")
 async def errors_handling(request: Request, call_next):
     try:
         return await call_next(request)
     except Exception as exc:
+        logger.error(f"Unhandled error: {str(exc)}", exc_info=True)
         return JSONResponse(
             status_code=500,
-            content={
-                "message": "Internal server error",
-                "detail": str(exc)
-            }
+            content={"detail": "Internal server error"}
         )
 
 # Include routers
@@ -65,6 +92,11 @@ app.include_router(
     shopify.router,
     prefix=f"{settings.API_V1_STR}/auth",
     tags=["auth"]
+)
+app.include_router(
+    image_processing.router,
+    prefix=f"{settings.API_V1_STR}/image-processing",
+    tags=["image-processing"]
 )
 
 # Exception handler
@@ -77,27 +109,38 @@ async def app_exception_handler(request: Request, exc: AppException):
 
 @app.get("/")
 async def root():
-    return {"status": "healthy", "service": "shopify-ai-image-processor"}
+    """Root endpoint returning API status"""
+    return {"status": "ok", "version": settings.VERSION}
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
-    try:
-        # Check Supabase connection
-        with SupabaseClient.get_connection() as supabase:
-            supabase.table('stores').select('*').limit(1).execute()
-        db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-
+    """Health check endpoint"""
     return {
         "status": "healthy",
-        "services": {
-            "database": db_status,
-        }
+        "version": settings.VERSION,
+        "environment": settings.DEBUG and "development" or "production"
     }
+
+# Protected route example
+@app.get("/protected")
+async def protected_route(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Test endpoint for authentication"""
+    return {"status": "authenticated", "token": credentials.credentials}
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    logger.info("Starting up API server...")
+    try:
+        # Initialize database connection
+        await init_database()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        raise
+    # Initialize monitoring
+    setup_monitoring(app)
+    logger.info("API server started successfully")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 

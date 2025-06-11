@@ -1,82 +1,104 @@
-from typing import Dict, Any, Optional, List
+from typing import List, Optional, Dict, Any
 from app.models.task import Task, TaskStatus, TaskType
-from app.repositories.task import task_repository
-from app.core.celery import celery_app
+from sqlalchemy.orm import Session
+from uuid import UUID
+import logging
+from app.core.database import SessionLocal
+
+logger = logging.getLogger(__name__)
 
 class TaskService:
-    def __init__(self):
-        self.repository = task_repository
+    def __init__(self, db: Session):
+        self.db = db
 
-    def create(
+    def create_task(
         self,
-        task_id: str,
+        store_id: UUID,
         task_type: TaskType,
-        store_id: int,
-        params: Dict[str, Any]
+        celery_task_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Task:
         """Create a new task"""
-        return self.repository.create(
-            task_id=task_id,
-            task_type=task_type,
-            store_id=store_id,
-            status=TaskStatus.PENDING,
-            params=params
-        )
+        try:
+            task = Task(
+                store_id=store_id,
+                type=task_type,
+                celery_task_id=celery_task_id,
+                metadata=metadata
+            )
+            self.db.add(task)
+            self.db.commit()
+            self.db.refresh(task)
+            return task
+        except Exception as e:
+            logger.error(f"Failed to create task: {e}")
+            self.db.rollback()
+            raise
 
-    def get(self, task_id: str) -> Optional[Task]:
-        """Get task by ID"""
-        return self.repository.get(task_id)
+    def get_task(self, task_id: UUID) -> Optional[Task]:
+        """Get a task by ID"""
+        return self.db.query(Task).filter(Task.id == task_id).first()
 
-    def list_by_store(
+    def update_task(
         self,
-        store_id: int,
+        task_id: UUID,
+        status: Optional[TaskStatus] = None,
+        progress: Optional[int] = None,
+        result: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None
+    ) -> Optional[Task]:
+        """Update a task"""
+        try:
+            task = self.get_task(task_id)
+            if not task:
+                return None
+
+            if status:
+                task.status = status
+            if progress is not None:
+                task.progress = progress
+            if result:
+                task.result = result
+            if error:
+                task.error = error
+
+            self.db.commit()
+            self.db.refresh(task)
+            return task
+        except Exception as e:
+            logger.error(f"Failed to update task: {e}")
+            self.db.rollback()
+            raise
+
+    def list_tasks(
+        self,
+        store_id: UUID,
         status: Optional[TaskStatus] = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[Task]:
         """List tasks for a store"""
-        return self.repository.list_by_store(
-            store_id=store_id,
-            status=status,
-            limit=limit,
-            offset=offset
-        )
+        query = self.db.query(Task).filter(Task.store_id == store_id)
+        
+        if status:
+            query = query.filter(Task.status == status)
+            
+        return query.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
 
-    def update_status(
-        self,
-        task_id: str,
-        status: TaskStatus,
-        result: Dict[str, Any] = None,
-        error_message: str = None
-    ) -> Task:
-        """Update task status"""
-        return self.repository.update(
-            task_id=task_id,
-            status=status,
-            result=result,
-            error_message=error_message
-        )
-
-    def get_task_status(self, task_id: str) -> Dict[str, Any]:
-        """Get task status from Celery"""
-        result = celery_app.AsyncResult(task_id)
-        return {
-            "task_id": task_id,
-            "status": result.status,
-            "result": result.result if result.successful() else None,
-            "error": str(result.result) if result.failed() else None
-        }
-
-    def revoke_task(self, task_id: str, terminate: bool = False) -> bool:
-        """Revoke a running task"""
+    def delete_task(self, task_id: UUID) -> bool:
+        """Delete a task"""
         try:
-            celery_app.control.revoke(task_id, terminate=terminate)
-            self.update_status(
-                task_id=task_id,
-                status=TaskStatus.REVOKED
-            )
-            return True
-        except Exception:
-            return False
+            task = self.get_task(task_id)
+            if not task:
+                return False
 
-task_service = TaskService() 
+            self.db.delete(task)
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete task: {e}")
+            self.db.rollback()
+            raise
+
+# Create a global instance of TaskService with a database session
+task_service = TaskService(SessionLocal()) 

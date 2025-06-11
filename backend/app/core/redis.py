@@ -1,9 +1,12 @@
 import redis
-from app.core.config import settings
+from typing import Optional, Dict
+import os
+from app.core.config import get_settings
 from app.core.exceptions import RateLimitError
-from typing import Optional
 import json
 from datetime import datetime, timedelta
+
+settings = get_settings()
 
 class RedisClient:
     _instance = None
@@ -12,46 +15,47 @@ class RedisClient:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(RedisClient, cls).__new__(cls)
-            cls._instance._initialize()
+            if not os.getenv("TESTING"):
+                cls._instance._initialize()
         return cls._instance
 
     def _initialize(self):
         try:
-            self._client = redis.Redis.from_url(
-                settings.REDIS_URL,
+            self._client = redis.Redis(
+                host=settings.REDIS_HOST,
+                port=settings.REDIS_PORT,
+                db=settings.REDIS_DB,
                 decode_responses=True
             )
-            self._client.ping()  # Test connection
+            self._client.ping()
         except Exception as e:
-            raise ConnectionError(f"Failed to connect to Redis: {str(e)}")
+            if not os.getenv("TESTING"):
+                raise ConnectionError(f"Failed to connect to Redis: {str(e)}")
 
     @property
     def client(self) -> redis.Redis:
-        if not self._client:
-            self._initialize()
         return self._client
 
     def get_cache(self, key: str) -> Optional[dict]:
-        """Get cached data"""
+        if not self._client:
+            return None
         try:
-            data = self._client.get(key)
-            return json.loads(data) if data else None
+            value = self._client.get(key)
+            return eval(value) if value else None
         except Exception:
             return None
 
     def set_cache(self, key: str, value: dict, expire: int = 3600) -> bool:
-        """Set cached data with expiration in seconds"""
+        if not self._client:
+            return False
         try:
-            return self._client.setex(
-                key,
-                expire,
-                json.dumps(value)
-            )
+            return self._client.setex(key, expire, str(value))
         except Exception:
             return False
 
     def delete_cache(self, key: str) -> bool:
-        """Delete cached data"""
+        if not self._client:
+            return False
         try:
             return bool(self._client.delete(key))
         except Exception:
@@ -64,52 +68,40 @@ class RedisClient:
         period: int = 60,
         increment: bool = True
     ) -> bool:
-        """
-        Check if rate limit is exceeded
-        Args:
-            key: Rate limit key (e.g., "user:123:api")
-            limit: Maximum number of requests
-            period: Time period in seconds
-            increment: Whether to increment the counter
-        Returns:
-            bool: True if limit is not exceeded
-        """
-        try:
-            pipeline = self._client.pipeline()
-            pipeline.get(key)
-            if increment:
-                pipeline.incr(key)
-                pipeline.expire(key, period)
-            result = pipeline.execute()
-
-            current = int(result[0]) if result[0] else 0
-            if not increment:
-                return current < limit
-
-            if current > limit:
-                raise RateLimitError(
-                    f"Rate limit exceeded. Try again in {self._client.ttl(key)} seconds."
-                )
+        if not self._client:
             return True
-        except RateLimitError:
-            raise
-        except Exception as e:
-            # Log error but don't block the request
-            print(f"Rate limit check failed: {str(e)}")
+        try:
+            current = self._client.get(key)
+            if not current:
+                if increment:
+                    self._client.setex(key, period, 1)
+                return True
+            
+            count = int(current)
+            if count >= limit:
+                return False
+            
+            if increment:
+                self._client.incr(key)
+            return True
+        except Exception:
             return True
 
     def get_lock(self, key: str, expire: int = 30) -> bool:
-        """Get distributed lock"""
-        return bool(self._client.set(
-            f"lock:{key}",
-            datetime.utcnow().isoformat(),
-            ex=expire,
-            nx=True
-        ))
+        if not self._client:
+            return True
+        try:
+            return bool(self._client.set(f"lock:{key}", 1, ex=expire, nx=True))
+        except Exception:
+            return False
 
     def release_lock(self, key: str) -> bool:
-        """Release distributed lock"""
-        return bool(self._client.delete(f"lock:{key}"))
+        if not self._client:
+            return True
+        try:
+            return bool(self._client.delete(f"lock:{key}"))
+        except Exception:
+            return False
 
 # Create a global instance
 redis_client = RedisClient() 

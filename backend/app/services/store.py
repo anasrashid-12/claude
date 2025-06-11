@@ -1,118 +1,107 @@
-from typing import Optional
+from typing import Optional, List
 import shopify
-from app.models.store import Store, StoreCreate, StoreUpdate
-from app.repositories.store import StoreRepository
-from app.services.base import BaseService
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError, ValidationError
+from app.core.database import Database
+from app.models.store import Store, StoreCreate, StoreUpdate
+from datetime import datetime
+import logging
 
-class StoreService(BaseService[Store, StoreCreate, StoreUpdate, StoreRepository]):
+logger = logging.getLogger(__name__)
+
+class StoreService:
     def __init__(self):
-        super().__init__(StoreRepository)
+        self.db = Database()
+        shopify.Session.setup(
+            api_key=settings.SHOPIFY_API_KEY,
+            secret=settings.SHOPIFY_API_SECRET
+        )
 
-    async def get_by_domain(self, shop_domain: str) -> Optional[Store]:
-        """Get a store by its domain"""
-        return await self.repository.get_by_domain(shop_domain)
-
-    async def get_active_by_domain(self, shop_domain: str) -> Store:
-        """Get an active store by its domain or raise error"""
-        store = await self.repository.get_active_by_domain(shop_domain)
-        if not store:
-            raise AuthenticationError(f"Store {shop_domain} not found or inactive")
-        return store
-
-    async def install_store(self, shop_domain: str, access_token: str) -> Store:
-        """Install or update a Shopify store"""
+    async def create_store(self, store_data: StoreCreate) -> Store:
+        """
+        Create a new store
+        """
         try:
-            # Initialize Shopify session
-            session = shopify.Session(shop_domain, settings.API_VERSION, access_token)
-            shopify.ShopifyResource.activate_session(session)
-
-            # Get shop information
-            shop = shopify.Shop.current()
-            
-            # Create or update store
-            store_data = {
-                "shop_domain": shop_domain,
-                "access_token": access_token,
-                "is_active": True,
-                "shop_name": shop.name,
-                "shop_email": shop.email,
-                "shop_owner": shop.shop_owner,
-                "shop_plan": shop.plan_name,
-                "shop_country": shop.country_code,
-                "shop_currency": shop.currency,
-                "shop_timezone": shop.timezone,
-                "myshopify_domain": shop.myshopify_domain,
-                "primary_locale": shop.primary_locale,
-                "plan_name": shop.plan_name,
-                "plan_display_name": shop.plan_display_name,
-            }
-
-            existing_store = await self.get_by_domain(shop_domain)
-            if existing_store:
-                updated_store = await self.repository.update(
-                    existing_store.id,
-                    StoreUpdate(**store_data)
-                )
-            else:
-                updated_store = await self.repository.create(
-                    StoreCreate(**store_data)
-                )
-
-            return updated_store
-
-        except shopify.ValidationException as e:
-            raise ValidationError(f"Invalid Shopify credentials: {str(e)}")
+            result = await self.db.create("stores", store_data.model_dump())
+            return Store(**result)
         except Exception as e:
-            raise ValidationError(f"Failed to install store: {str(e)}")
-        finally:
-            shopify.ShopifyResource.clear_session()
+            logger.error(f"Failed to create store: {e}")
+            raise
 
-    async def uninstall_store(self, shop_domain: str) -> bool:
-        """Uninstall a Shopify store"""
-        store = await self.get_by_domain(shop_domain)
-        if not store:
-            return False
-
+    async def get_store(self, shop_domain: str) -> Optional[Store]:
+        """
+        Get a store by domain
+        """
         try:
-            # Update store status
-            await self.repository.update(
-                store.id,
-                StoreUpdate(
-                    is_active=False,
-                    access_token=None
-                )
+            result = await self.db.execute_query(
+                "stores",
+                lambda q: q.select("*").eq("shop_domain", shop_domain).single()
             )
-            return True
+            return Store(**result.data) if result.data else None
         except Exception as e:
-            raise ValidationError(f"Failed to uninstall store: {str(e)}")
+            logger.error(f"Failed to get store: {e}")
+            raise
 
-    def validate_hmac(self, shop_domain: str, hmac: str, params: dict) -> bool:
-        """Validate Shopify HMAC signature"""
+    async def update_store(self, shop_domain: str, store_data: StoreUpdate) -> Optional[Store]:
+        """
+        Update a store
+        """
         try:
-            return shopify.Session.validate_params(params)
-        except Exception:
-            return False
-
-    def build_auth_url(self, shop_domain: str, redirect_uri: str) -> str:
-        """Build Shopify OAuth URL"""
-        try:
-            session = shopify.Session(shop_domain, settings.API_VERSION)
-            return session.create_permission_url(
-                settings.SHOPIFY_SCOPES,
-                redirect_uri
+            result = await self.db.execute_query(
+                "stores",
+                lambda q: q.update(store_data.model_dump(exclude_unset=True))
+                    .eq("shop_domain", shop_domain)
+                    .single()
             )
+            return Store(**result.data) if result.data else None
         except Exception as e:
-            raise ValidationError(f"Failed to build auth URL: {str(e)}")
+            logger.error(f"Failed to update store: {e}")
+            raise
 
-    async def exchange_code_for_token(self, shop_domain: str, code: str) -> str:
-        """Exchange authorization code for access token"""
+    async def delete_store(self, shop_domain: str) -> bool:
+        """
+        Delete a store
+        """
         try:
-            session = shopify.Session(shop_domain, settings.API_VERSION)
-            access_token = session.request_token(code)
-            return access_token
+            result = await self.db.execute_query(
+                "stores",
+                lambda q: q.delete().eq("shop_domain", shop_domain)
+            )
+            return bool(result.data)
         except Exception as e:
-            raise AuthenticationError(f"Failed to exchange code for token: {str(e)}")
+            logger.error(f"Failed to delete store: {e}")
+            raise
+
+    async def list_stores(self, limit: int = 10, offset: int = 0) -> List[Store]:
+        """
+        List all stores
+        """
+        try:
+            result = await self.db.execute_query(
+                "stores",
+                lambda q: q.select("*")
+                    .order("created_at", desc=True)
+                    .range(offset, offset + limit - 1)
+            )
+            return [Store(**store) for store in result.data]
+        except Exception as e:
+            logger.error(f"Failed to list stores: {e}")
+            raise
+
+    def create_shopify_session(self, shop_domain: str, access_token: str) -> shopify.Session:
+        """
+        Create a Shopify session
+        """
+        return shopify.Session(
+            shop_domain,
+            settings.SHOPIFY_API_VERSION,
+            access_token
+        )
+
+    async def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        """
+        Verify Shopify webhook
+        """
+        from app.core.security import verify_shopify_webhook
+        return verify_shopify_webhook(headers, body, settings.SHOPIFY_API_SECRET)
 
 store_service = StoreService() 

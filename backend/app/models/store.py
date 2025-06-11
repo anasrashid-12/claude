@@ -1,43 +1,32 @@
 from datetime import datetime
 from typing import Optional, Dict
 from pydantic import BaseModel, Field, UUID4, HttpUrl
+from uuid import UUID
 
-class Store(BaseModel):
-    id: Optional[UUID4] = None
-    shop_domain: str
-    access_token: str
-    shop_name: str
-    email: str
-    country: str
-    currency: str
-    status: str  # 'active', 'inactive', 'suspended'
-    webhook_url: Optional[str] = None
-    subscription_status: Optional[str] = None  # 'trial', 'active', 'cancelled'
-    trial_ends_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+class StoreBase(BaseModel):
+    """Base Store model"""
+    shop_domain: str = Field(..., description="The Shopify store domain")
+    access_token: Optional[str] = Field(None, description="The Shopify access token")
+    installed_at: Optional[datetime] = Field(None, description="When the app was installed")
+    uninstalled_at: Optional[datetime] = Field(None, description="When the app was uninstalled")
 
-    class Config:
-        orm_mode = True
-
-class StoreCreate(BaseModel):
-    shop_domain: str
-    access_token: str
-    shop_name: str
-    email: str
-    country: str = ""
-    currency: str = "USD"
-    status: str = "active"
+class StoreCreate(StoreBase):
+    """Store creation model"""
+    pass
 
 class StoreUpdate(BaseModel):
-    shop_name: Optional[str] = None
-    email: Optional[str] = None
-    country: Optional[str] = None
-    currency: Optional[str] = None
-    status: Optional[str] = None
-    webhook_url: Optional[str] = None
-    subscription_status: Optional[str] = None
-    trial_ends_at: Optional[datetime] = None
+    """Store update model"""
+    access_token: Optional[str] = None
+    uninstalled_at: Optional[datetime] = None
+
+class Store(StoreBase):
+    """Complete Store model"""
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class StoreSettings(BaseModel):
     """Store settings model"""

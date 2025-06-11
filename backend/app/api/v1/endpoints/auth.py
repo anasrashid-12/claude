@@ -1,15 +1,20 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.services.store import store_service
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, ValidationError
 from typing import Optional
 from pydantic import BaseModel, EmailStr
+from app.core.security import get_current_user, create_access_token, verify_token
+from app.integrations.shopify import ShopifyAuth, ShopifyWebhooks
+import logging
 
 from app.core.supabase import supabase
-from app.core.security import get_current_user
 
 router = APIRouter()
+security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 class InstallResponse(BaseModel):
     auth_url: str
@@ -37,69 +42,126 @@ class UserResponse(BaseModel):
     store_url: Optional[str] = None
 
 @router.get("/install")
-async def install(shop: str, request: Request) -> InstallResponse:
-    """
-    Start Shopify OAuth installation process
-    """
+async def install_app(shop: str):
+    """Start Shopify OAuth process."""
     try:
-        # Build the OAuth URL
-        redirect_uri = str(request.base_url)[:-1] + router.url_path_for("callback")
-        auth_url = store_service.build_auth_url(shop, redirect_uri)
-        return InstallResponse(auth_url=auth_url)
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Initialize auth
+        auth = ShopifyAuth()
+        
+        # Verify shop domain
+        if not await auth.verify_shop_domain(shop):
+            raise HTTPException(status_code=400, detail="Invalid Shopify shop domain")
+        
+        # Create installation URL
+        install_url = auth.create_install_url(shop)
+        return {"auth_url": install_url}
+        
+    except Exception as e:
+        logger.error(f"Failed to create install URL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/callback")
-async def callback(
-    shop: str,
-    code: str,
-    hmac: Optional[str] = None,
-    timestamp: Optional[str] = None,
-    state: Optional[str] = None
-) -> TokenResponse:
-    """
-    Handle Shopify OAuth callback
-    """
+async def oauth_callback(code: str, shop: str, state: Optional[str] = None):
+    """Handle Shopify OAuth callback."""
     try:
-        # Validate HMAC if provided
-        if hmac and timestamp:
-            params = {
-                "shop": shop,
-                "code": code,
-                "timestamp": timestamp,
-                "state": state
-            }
-            if not store_service.validate_hmac(shop, hmac, params):
-                raise AuthenticationError("Invalid HMAC signature")
-
+        # Initialize auth
+        auth = ShopifyAuth()
+        
         # Exchange code for access token
-        access_token = await store_service.exchange_code_for_token(shop, code)
-
-        # Install or update store
-        await store_service.install_store(shop, access_token)
-
-        return TokenResponse(
-            access_token=access_token,
-            shop_domain=shop
+        access_token = await auth.get_access_token(shop, code)
+        
+        # Get shop details
+        shop_data = await auth.get_shop_data(shop, access_token)
+        
+        # Create store model
+        store_model = auth.create_store_model(shop, access_token, shop_data)
+        
+        # Create or update store in database
+        existing_store = await store_service.get_store(shop)
+        if existing_store:
+            store = await store_service.update_store(
+                shop,
+                {"access_token": access_token, "uninstalled_at": None}
+            )
+        else:
+            store = await store_service.create_store(store_model)
+        
+        # Register webhooks
+        webhooks = ShopifyWebhooks(shop, access_token)
+        await webhooks.register_webhooks()
+        
+        # Create JWT token
+        token = create_access_token({"store_id": str(store.id)})
+        
+        # Redirect to frontend with token
+        return RedirectResponse(
+            url=f"{settings.SHOPIFY_APP_URL}/auth/callback?token={token}&shop={shop}"
         )
-    except AuthenticationError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-    except ValidationError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        
     except Exception as e:
+        logger.error(f"OAuth callback failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/uninstall")
-async def uninstall(shop: str):
+async def uninstall_webhook(request: Request):
+    """Handle app uninstallation webhook."""
+    try:
+        # Get HMAC header
+        hmac_header = request.headers.get('X-Shopify-Hmac-Sha256')
+        if not hmac_header:
+            raise HTTPException(status_code=401, detail="Missing HMAC header")
+        
+        # Get shop domain
+        shop_domain = request.headers.get('X-Shopify-Shop-Domain')
+        if not shop_domain:
+            raise HTTPException(status_code=401, detail="Missing shop domain")
+        
+        # Get request body
+        body = await request.body()
+        
+        # Verify webhook
+        auth = ShopifyAuth()
+        if not auth.verify_webhook(hmac_header, body):
+            raise HTTPException(status_code=401, detail="Invalid HMAC signature")
+        
+        # Update store status
+        store = await store_service.get_store(shop_domain)
+        if store:
+            await store_service.update_store(
+                shop_domain,
+                {"uninstalled_at": "now()"}
+            )
+        
+        return {"status": "success"}
+        
+    except Exception as e:
+        logger.error(f"Uninstall webhook failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/verify")
+async def verify_session(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """
-    Uninstall app from a Shopify store
+    Verify JWT token and return store information
     """
     try:
-        success = await store_service.uninstall_store(shop)
-        if not success:
+        # Verify token
+        token_data = verify_token(credentials.credentials)
+        store_id = token_data.get("store_id")
+        
+        if not store_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get store
+        store = await store_service.get_store_by_id(store_id)
+        if not store:
             raise HTTPException(status_code=404, detail="Store not found")
-        return {"message": "Store uninstalled successfully"}
+            
+        return store
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Session verification failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/signup", response_model=Token)

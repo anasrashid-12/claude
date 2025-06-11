@@ -7,13 +7,15 @@ from functools import lru_cache
 
 from app.core.config import settings
 
-# Sync engine for Celery tasks
+# Create SQLAlchemy engine
 engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI,
+    settings.SUPABASE_DB_URL,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10
+    pool_size=10,
+    max_overflow=20
 )
+
+# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Async engine for FastAPI

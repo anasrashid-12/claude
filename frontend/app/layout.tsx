@@ -1,18 +1,26 @@
-'use client';
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { Providers } from './providers'
 
-import '@shopify/polaris/build/esm/styles.css';
-import './globals.css';
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata = {
+  title: 'AI Image Processor for Shopify',
+  description: 'Process your product images with AI',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en">
-      <body>
-        {children}
+      <body className={inter.className}>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
-  );
+  )
 } 

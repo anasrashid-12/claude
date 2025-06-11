@@ -1,8 +1,37 @@
 version: '3.8'
 
 services:
-  frontend:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/env.development
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  celery_worker:
     build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/env.development
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - app-network
+
+  frontend:
+    build: 
       context: ./frontend
       dockerfile: Dockerfile
     ports:
@@ -10,70 +39,67 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8001
-    networks:
-      - shopify-ai-network
+    env_file:
+      - ./frontend/.env.local
     depends_on:
-      - ai-service
+      - backend
+    networks:
+      - app-network
 
   ai-service:
     build:
-      context: ./backend
+      context: ./ai-service
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
-    volumes:
-      - ./ai-service:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
-    networks:
-      - shopify-ai-network
     depends_on:
       - redis
+    volumes:
+      - ./ai-service:/app
+    networks:
+      - app-network
 
   ai-worker:
     build:
-      context: ./backend
+      context: ./ai-service
       dockerfile: Dockerfile.worker
-    command: celery -A main worker --loglevel=info
-    volumes:
-      - ./ai-service:/app
     environment:
       - REDIS_URL=redis://redis:6379/0
-    networks:
-      - shopify-ai-network
     depends_on:
       - redis
+      - ai-service
+    volumes:
+      - ./ai-service:/app
+    networks:
+      - app-network
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
     networks:
-      - shopify-ai-network
+      - app-network
 
   flower:
-    image: mher/flower:1.2
-    command: celery flower
+    image: mher/flower
     ports:
       - "5555:5555"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - FLOWER_PORT=5555
-    networks:
-      - shopify-ai-network
     depends_on:
       - redis
-      - ai-worker
-
-networks:
-  shopify-ai-network:
-    driver: bridge
+      - celery_worker
+    networks:
+      - app-network
 
 volumes:
-  redis-data: 
+  redis-data:
+
+networks:
+  app-network:
+    driver: bridge 
