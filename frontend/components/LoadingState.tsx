@@ -8,20 +8,20 @@ export const LoadingState: React.FC = () => {
       <Layout>
         <Layout.Section>
           <Card>
-            <Box padding={UI.SPACING.TIGHT}>
+            <Box padding="400">
               <SkeletonBodyText lines={1} />
             </Box>
-            <Box padding={UI.SPACING.TIGHT}>
+            <Box padding="400">
               <SkeletonBodyText lines={5} />
             </Box>
           </Card>
         </Layout.Section>
         <Layout.Section>
           <Card>
-            <Box padding={UI.SPACING.TIGHT}>
+            <Box padding="400">
               <SkeletonBodyText lines={1} />
             </Box>
-            <Box padding={UI.SPACING.TIGHT}>
+            <Box padding="400">
               <SkeletonBodyText lines={3} />
             </Box>
           </Card>

@@ -23,28 +23,29 @@ export const IMAGE_PROCESSING = {
   ALLOWED_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
 };
 
-// UI Constants
+import type { Spacing } from '../types'; // path to your types
+
 export const UI = {
   SPACING: {
-    NONE: 0,
-    EXTRA_TIGHT: 1,
-    TIGHT: 2,
-    BASE: 4,
-    LOOSE: 5,
-    EXTRA_LOOSE: 6,
-    EXTRA_EXTRA_LOOSE: 8,
-  } as const,
-  
+    NONE: 'none' as Spacing,
+    EXTRA_TIGHT: 'extraTight' as Spacing,
+    TIGHT: 'tight' as Spacing,
+    BASE: 'base' as Spacing,
+    LOOSE: 'loose' as Spacing,
+    EXTRA_LOOSE: 'extraLoose' as Spacing,
+    EXTRA_EXTRA_LOOSE: 'extraExtraLoose' as Spacing,
+  },
+
   GAP: {
-    NONE: 0,
-    EXTRA_TIGHT: 1,
-    TIGHT: 2,
-    BASE: 4,
-    LOOSE: 5,
-    EXTRA_LOOSE: 6,
-    EXTRA_EXTRA_LOOSE: 8,
-  } as const,
-  
+    NONE: 'none' as Spacing,
+    EXTRA_TIGHT: 'extraTight' as Spacing,
+    TIGHT: 'tight' as Spacing,
+    BASE: 'base' as Spacing,
+    LOOSE: 'loose' as Spacing,
+    EXTRA_LOOSE: 'extraLoose' as Spacing,
+    EXTRA_EXTRA_LOOSE: 'extraExtraLoose' as Spacing,
+  },
+
   BREAKPOINTS: {
     MOBILE: 'mobile',
     TABLET: 'tablet',
@@ -60,4 +61,4 @@ export const ERROR_MESSAGES = {
   PROCESSING_FAILED: 'Failed to process image',
   RETRY_FAILED: 'Failed to retry task',
   WEBSOCKET_DISCONNECTED: 'Disconnected from real-time updates',
-}; 
+};

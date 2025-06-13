@@ -1,26 +1,17 @@
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { Providers } from './providers'
-
-const inter = Inter({ subsets: ['latin'] })
+import '../styles/globals.css'
+import { Providers } from './providers/providers';
 
 export const metadata = {
-  title: 'AI Image Processor for Shopify',
-  description: 'Process your product images with AI',
-}
+  title: 'AI Image Processor',
+  description: 'Process images with AI inside your Shopify store',
+};
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+      <body>
+        <Providers>{children}</Providers>
       </body>
     </html>
-  )
-} 
+  );
+}

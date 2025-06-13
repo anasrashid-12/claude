@@ -1,8 +1,15 @@
 import { UI } from '../constants';
 
 // Polaris types
-export type Spacing = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export type Gap = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+// Polaris-compatible spacing
+export type Spacing =
+  | 'none'
+  | 'extraTight'
+  | 'tight'
+  | 'base'
+  | 'loose'
+  | 'extraLoose'
+  | 'extraExtraLoose';
 export type Breakpoint = 'mobile' | 'tablet' | 'desktop' | 'wide';
 
 // Domain types

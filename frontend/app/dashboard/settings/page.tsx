@@ -1,13 +1,13 @@
 'use client';
 import { Page, Layout, Card, Text } from '@shopify/polaris';
 
-export default function ImageGalleryPage() {
+export default function SettingsPage() {
   return (
-    <Page title="Image Gallery">
+    <Page title="Settings">
       <Layout>
         <Layout.Section>
           <Card>
-            <Text as="h2" variant="headingMd">Image Gallery coming soon</Text>
+            <Text as="h2" variant="headingMd">Settings Panel (coming soon)</Text>
           </Card>
         </Layout.Section>
       </Layout>

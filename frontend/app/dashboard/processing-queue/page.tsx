@@ -1,6 +1,6 @@
 'use client';
 import { Page, Layout } from '@shopify/polaris';
-import ProcessingQueue from '@/components/ProcessingQueue';
+import ProcessingQueue from '../../../components/ProcessingQueue';
 
 export default function ProcessingQueuePage() {
   return (
