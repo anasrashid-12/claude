@@ -4,106 +4,40 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: ai-backend
+    container_name: backend
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    environment:
-      - PYTHONUNBUFFERED=1
     depends_on:
       - redis
 
+  backend-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: backend-worker
+    command: celery -A celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - backend
+      - redis
+
   redis:
-    image: redis:alpine
+    image: redis:latest
     container_name: redis
     ports:
       - "6379:6379"
 
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.worker
-    volumes:
-      - ./backend:/app
-    env_file:
-      - ./backend/env.development
-    depends_on:
-      - redis
-      - backend
-    networks:
-      - app-network
-
   frontend:
-    build: 
+    build:
       context: ./frontend
-      dockerfile: Dockerfile
+    container_name: frontend
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
-    env_file:
-      - ./frontend/.env.local
-    depends_on:
-      - backend
-    networks:
-      - app-network
-
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
     environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    volumes:
-      - ./ai-service:/app
-    networks:
-      - app-network
-
-  ai-worker:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile.worker
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-      - ai-service
-    volumes:
-      - ./ai-service:/app
-    networks:
-      - app-network
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - app-network
-
-  flower:
-    image: mher/flower
-    ports:
-      - "5555:5555"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - FLOWER_PORT=5555
-    depends_on:
-      - redis
-      - celery_worker
-    networks:
-      - app-network
-
-volumes:
-  redis-data:
-
-networks:
-  app-network:
-    driver: bridge 
+      - NODE_ENV=development
+    command: sh -c "npm install && npm run dev"

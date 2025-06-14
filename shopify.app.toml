@@ -6,11 +6,11 @@ scope = "read_products, write_products"
 
 [auth]
 redirect_urls = [
-  "https://5f03-103-244-174-250.ngrok-free.app/api/auth/callback"
+  "https://6a8a-2400-adc1-47c-4e00-f584-ac49-1130-c0fb.ngrok-free.app/api/auth/callback"
 ]
 
 [web]
-application_url = "https://5f03-103-244-174-250.ngrok-free.app"
+application_url = "https://6a8a-2400-adc1-47c-4e00-f584-ac49-1130-c0fb.ngrok-free.app"
 socket = "3000"
 
 [build]
@@ -24,5 +24,5 @@ tunnel = true
 [webhooks]
 api_version = "2023-07"
 subscriptions = [
-  { topics = ["APP_UNINSTALLED"], path = "/api/webhooks", uri = "https://5f03-103-244-174-250.ngrok-free.app/api/webhooks" }
+  { topics = ["APP_UNINSTALLED"], path = "/api/webhooks", uri = "https://6a8a-2400-adc1-47c-4e00-f584-ac49-1130-c0fb.ngrok-free.app/api/webhooks" }
 ]

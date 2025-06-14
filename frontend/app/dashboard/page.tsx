@@ -1,24 +1,21 @@
-'use client';
-import Link from 'next/link';
-import { Page, Layout, Card, Text, InlineStack, Button } from '@shopify/polaris';
+import { redirect } from "next/navigation"; 
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const shop = "your-shop.myshopify.com"; // Replace dynamically if needed
+
+  const res = await fetch(`http://localhost:8000/auth/check?shop=${shop}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    redirect(`/login?shop=${shop}`);
+  }
+
   return (
-    <Page title="Dashboard">
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <InlineStack gap="400">
-              <Button url="/dashboard/image-gallery">Image Gallery</Button>
-              <Button url="/dashboard/processing-queue">Processing Queue</Button>
-              <Button url="/dashboard/settings">Settings</Button>
-            </InlineStack>
-            <Text variant="bodyMd" as="p" tone="subdued" alignment="center">
-              Welcome to Maxflow AI Image Processing App
-            </Text>
-          </Card>
-        </Layout.Section>
-      </Layout>
-    </Page>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+      <p>Welcome to the dashboard! Authenticated successfully.</p>
+    </div>
   );
 }

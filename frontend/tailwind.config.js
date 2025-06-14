@@ -1,21 +1,9 @@
-/** @type {import('tailwindcss').Config} */
+/// FILE: tailwind.config.js
 module.exports = {
-  content: [
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-  ],
-  theme: {
-    extend: {
-      colors: {
-        shopify: {
-          DEFAULT: '#008060',
-          dark: '#004C3F',
-          light: '#C1F0D0',
-        },
-      },
+    content: ["./app/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
+    theme: {
+      extend: {},
     },
-  },
-  plugins: [],
-  important: true, // ✔ Helps avoid Polaris conflict
-};
+    plugins: [],
+  }
+  

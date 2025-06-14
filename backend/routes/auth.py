@@ -1,14 +1,22 @@
-# backend/routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException
-from utils.auth import create_jwt, verify_jwt
+from fastapi import APIRouter, Request, Query
+from fastapi.responses import RedirectResponse  
+import urllib.parse
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+auth_router = APIRouter()
 
-@router.post("/login")
-def login(user_id: str):
-    token = create_jwt(user_id)
-    return {"access_token": token}
+SHOPIFY_API_KEY = "39e28007c7d0d65a26cc66cef72fa7c2"
+SCOPES = "read_products,write_products"
+REDIRECT_URI = "https://6a8a-2400-adc1-47c-4e00-f584-ac49-1130-c0fb.ngrok-free.app/auth/callback"
 
-@router.get("/verify")
-def verify(token: str):
-    return verify_jwt(token)
+@auth_router.get("/auth/install")
+async def install(shop: str = Query(...)):
+    if not shop:
+        return {"error": "Missing shop parameter"}
+    
+    install_url = (
+        f"https://{shop}/admin/oauth/authorize?"
+        f"client_id={SHOPIFY_API_KEY}&scope={urllib.parse.quote(SCOPES)}&"
+        f"redirect_uri={urllib.parse.quote(REDIRECT_URI)}&state=123456"
+    )
+
+    return RedirectResponse(install_url)

@@ -4,8 +4,8 @@ import os
 
 celery_app = Celery(
     "tasks",
-    broker=os.getenv("REDIS_URL", "redis://localhost:6379"),
-    backend=os.getenv("REDIS_URL", "redis://localhost:6379")
+    broker=os.getenv("REDIS_URL", "redis://redis:6379/0"),
+    backend=os.getenv("REDIS_URL", "redis://redis:6379/0")
 )
 
 @celery_app.task
