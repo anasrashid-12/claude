@@ -1,16 +1,16 @@
 name = "Maxflow AI Image App"
 client_id = "39e28007c7d0d65a26cc66cef72fa7c2"
-application_url = "https://b4ec-2400-adc1-47c-4e00-196c-765e-ee46-c49f.ngrok-free.app"
+application_url = "https://5f03-103-244-174-250.ngrok-free.app"
 embedded = true
 scope = "read_products, write_products"
 
 [auth]
 redirect_urls = [
-  "https://b4ec-2400-adc1-47c-4e00-196c-765e-ee46-c49f.ngrok-free.app/api/auth/callback"
+  "https://5f03-103-244-174-250.ngrok-free.app/api/auth/callback"
 ]
 
 [web]
-application_url = "https://b4ec-2400-adc1-47c-4e00-196c-765e-ee46-c49f.ngrok-free.app "
+application_url = "https://5f03-103-244-174-250.ngrok-free.app"
 socket = "3000"
 
 [build]
@@ -24,5 +24,5 @@ tunnel = true
 [webhooks]
 api_version = "2023-07"
 subscriptions = [
-  { topics = ["APP_UNINSTALLED"], path = "/api/webhooks", uri = "https://b4ec-2400-adc1-47c-4e00-196c-765e-ee46-c49f.ngrok-free.app/api/webhooks" }
+  { topics = ["APP_UNINSTALLED"], path = "/api/webhooks", uri = "https://5f03-103-244-174-250.ngrok-free.app/api/webhooks" }
 ]

@@ -1,49 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+'use client';
+
 import {
   Page,
   Layout,
   Card,
-  ResourceList,
+  DropZone,
   Thumbnail,
   Text,
-  Button,
-  Badge,
-  Modal,
-  Select,
-  Box,
   Banner,
   Spinner,
   EmptyState,
   BlockStack,
-  InlineStack,
   Frame,
   Toast,
+  Box,
 } from '@shopify/polaris';
-import { useAuthenticatedFetch } from '../hooks/useAuthenticatedFetch';
-
-interface Product {
-  id: string;
-  title: string;
-  image: { src: string; alt: string };
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-}
+import { useState, useCallback } from 'react';
 
 export function ImageProcessingDashboard() {
-  const fetch = useAuthenticatedFetch();
-
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [modalActive, setModalActive] = useState(false);
-  const [processingType, setProcessingType] = useState('background_removal');
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
   const [toastProps, setToastProps] = useState<{ content: string; error?: boolean } | null>(null);
-
-  const processingOptions = [
-    { label: 'Background Removal', value: 'background_removal' },
-    { label: 'Image Enhancement', value: 'enhancement' },
-    { label: 'Format Conversion', value: 'format_conversion' },
-  ];
 
   const showToast = useCallback((content: string, error = false) => {
     setToastProps({ content, error });
@@ -53,168 +31,95 @@ export function ImageProcessingDashboard() {
     setToastProps(null);
   }, []);
 
-  const fetchProducts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/v1/products');
-      if (!response?.ok) throw new Error('Failed to fetch products');
+  const handleDrop = useCallback((files: File[]) => {
+    setFile(files[0]);
+    setProcessedImageUrl(null); // Reset previous image
+  }, []);
 
-      const data = await response.json();
-      setProducts(data.products);
-    } catch (error) {
-      showToast('Failed to load products', true);
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetch, showToast]);
-
-  const handleProcessImages = async () => {
-    if (selectedProducts.length === 0) {
-      showToast('Please select at least one product', true);
+  const handleUpload = async () => {
+    if (!file) {
+      showToast('Please select a file first', true);
       return;
     }
 
-    setIsProcessing(true);
+    setUploading(true);
     try {
-      const response = await fetch('/api/v1/process', {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch('/api/v1/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_ids: selectedProducts,
-          process_type: processingType,
-        }),
+        body: formData,
       });
 
-      if (!response?.ok) throw new Error('Processing failed');
+      if (!response.ok) throw new Error('Upload failed');
 
-      showToast('Processing started successfully');
-      setModalActive(false);
-
-      setProducts(prev =>
-        prev.map(p =>
-          selectedProducts.includes(p.id) ? { ...p, status: 'processing' } : p
-        )
-      );
+      const data = await response.json();
+      setProcessedImageUrl(data.processed_url); // returned from AI service
+      showToast('Image uploaded & processed');
     } catch (error) {
-      showToast('Failed to start processing', true);
       console.error(error);
+      showToast('Error uploading image', true);
     } finally {
-      setIsProcessing(false);
+      setUploading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
-
-  const resourceName = { singular: 'product', plural: 'products' };
-  const bulkActions = [
-    {
-      content: 'Process Selected Images',
-      onAction: () => setModalActive(true),
-    },
-  ];
-
-  const handleSelectionChange = (selected: string[] | string) => {
-    setSelectedProducts(Array.isArray(selected) ? selected : [selected]);
-  };
-
-  const renderProductItem = (item: Product) => {
-    const { id, title, image, status } = item;
-    const toneMap = {
-      pending: 'info',
-      processing: 'warning',
-      completed: 'success',
-      failed: 'critical',
-    } as const;
-
-    return (
-      <ResourceList.Item id={id} accessibilityLabel={`View ${title}`} onClick={() => {}}>
-        <div style={{ padding: '16px' }}>
-          <InlineStack align="space-between">
-            <InlineStack align="start" gap="400">
-              <Thumbnail source={image.src} alt={image.alt} />
-              <Text as="span" variant="bodyMd" fontWeight="bold">
-                {title}
-              </Text>
-            </InlineStack>
-            <Badge tone={toneMap[status]}>{status}</Badge>
-          </InlineStack>
-        </div>
-      </ResourceList.Item>
-    );
-  };
-
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <Card>
-          <div style={{ padding: '16px', textAlign: 'center' }}>
-            <Spinner size="large" />
-          </div>
-        </Card>
-      );
-    }
-
-    if (products.length === 0) {
-      return (
-        <Card>
-          <EmptyState
-            heading="No products found"
-            image="/empty-state.svg"
-          >
-            <p>Add products to your store to start processing images.</p>
-          </EmptyState>
-        </Card>
-      );
-    }
-
-    return (
-      <Card>
-        <ResourceList
-          resourceName={resourceName}
-          items={products}
-          selectedItems={selectedProducts}
-          onSelectionChange={handleSelectionChange}
-          selectable
-          bulkActions={bulkActions}
-          renderItem={renderProductItem}
-        />
-      </Card>
-    );
   };
 
   return (
     <Frame>
-      <Page title="AI Image Processing">
+      <Page title="Upload Image for AI Processing">
         <Layout>
-          <Layout.Section>{renderContent()}</Layout.Section>
-        </Layout>
+          <Layout.Section>
+          <Card>
+            <Box padding="400">
+              <BlockStack gap="400">
+                <DropZone accept="image/*" type="image" onDrop={handleDrop}>
+                  {file ? (
+                    <DropZone.FileUpload />
+                  ) : (
+                    <DropZone.FileUpload actionTitle="Drop image here or click to upload" />
+                  )}
+                </DropZone>
 
-        <Modal
-          open={modalActive}
-          onClose={() => setModalActive(false)}
-          title="Process Images"
-          primaryAction={{
-            content: 'Start Processing',
-            onAction: handleProcessImages,
-            loading: isProcessing,
-          }}
-          secondaryActions={[{ content: 'Cancel', onAction: () => setModalActive(false) }]}
-        >
-          <Modal.Section>
-            <BlockStack gap="400">
-              <Select
-                label="Processing Type"
-                options={processingOptions}
-                onChange={setProcessingType}
-                value={processingType}
-              />
-              <Banner tone="info">Selected products: {selectedProducts.length}</Banner>
-            </BlockStack>
-          </Modal.Section>
-        </Modal>
+                {file && (
+                  <div style={{ textAlign: 'center' }}>
+                    <Thumbnail size="large" source={URL.createObjectURL(file)} alt={file.name} />
+                    <Text as="p" variant="bodyMd" fontWeight="medium">
+                      {file.name}
+                    </Text>
+                    <button
+                      style={{
+                        marginTop: '1rem',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#229799',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                      }}
+                      onClick={handleUpload}
+                      disabled={uploading}
+                    >
+                      {uploading ? 'Processing...' : 'Start Processing'}
+                    </button>
+                  </div>
+                )}
+
+                {uploading && <Spinner accessibilityLabel="Uploading" size="large" />}
+                {processedImageUrl && (
+                  <Banner title="Processed Image" tone="success">
+                    <img
+                      src={processedImageUrl}
+                      alt="Processed"
+                      style={{ marginTop: 10, maxWidth: '100%' }}
+                    />
+                  </Banner>
+                )}
+              </BlockStack>
+            </Box>
+          </Card>
+          </Layout.Section>
+        </Layout>
 
         {toastProps && (
           <Toast
