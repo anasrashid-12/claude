@@ -2,19 +2,23 @@ version: '3.8'
 
 services:
   backend:
-    build: 
+    build:
       context: ./backend
-      dockerfile: Dockerfile
+    container_name: ai-backend
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    env_file:
-      - ./backend/env.development
+    environment:
+      - PYTHONUNBUFFERED=1
     depends_on:
       - redis
-    networks:
-      - app-network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
 
   celery_worker:
     build:

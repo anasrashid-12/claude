@@ -1,5 +1,22 @@
-from app.main import app
+# backend/main.py
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from routes import upload, auth, shopify
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True) 
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(upload.router)
+app.include_router(shopify.router)
+
+@app.get("/")
+def root():
+    return {"message": "Maxflow AI Backend is running"}
