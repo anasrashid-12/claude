@@ -1,18 +1,4 @@
-# requirements.txt
-fastapi==0.109.0
-uvicorn==0.27.0
-python-multipart==0.0.6
-pillow==10.2.0
-numpy==1.26.3
-opencv-python-headless==4.9.0.80
-rembg==2.0.50
-httpx==0.26.0
-python-jose==3.3.0
-pydantic==2.5.3
-redis==5.0.1
-celery==5.3.6
-python-dotenv==1.0.0
-onnxruntime==1.17.0
-torch==2.2.0+cpu
-torchvision==0.17.0+cpu 
---extra-index-url https://download.pytorch.org/whl/cpu
+fastapi
+uvicorn
+requests
+pillow

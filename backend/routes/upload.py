@@ -1,29 +1,17 @@
 # backend/routes/upload.py
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from utils.auth import verify_jwt
-from utils.rate_limiter import rate_limiter
-from celery_app import process_image_task
-import uuid
-
-router = APIRouter(prefix="/upload", tags=["Upload"])
-
-@router.post("/")
-@rate_limiter
-async def upload_image(file: UploadFile = File(...), user=Depends(verify_jwt)):
-    task_id = str(uuid.uuid4())
-    contents = await file.read()
-    process_image_task.delay(task_id, contents, file.filename, user['user_id'])
-    return {"task_id": task_id, "status": "queued"}
+from fastapi import APIRouter, UploadFile, File, HTTPException
+import os
+from logging_config import logger
 
 upload_router = APIRouter()
 
-@upload_router.post("/upload")
-async def upload_file():
-    return {"message": "File uploaded successfully"}
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-shopify_router = APIRouter()
-
-@shopify_router.get("/shopify")
-async def shopify_root():
-    return {"message": "Shopify route working"}
+@upload_router.post("/")
+async def upload_image(image: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_DIR, image.filename)
+    with open(file_path, "wb") as f:
+        f.write(await image.read())
+    logger.info(f"Image uploaded: {image.filename}")
+    return {"message": "Uploaded", "filename": image.filename}

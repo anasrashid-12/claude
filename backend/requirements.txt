@@ -1,11 +1,8 @@
 fastapi
-uvicorn
-python-jose
-PyJWT
-redis
-celery
+uvicorn[standard]
 requests
-sqlalchemy
-psycopg2-binary
 python-dotenv
+supabase
+celery
+redis
 python-multipart

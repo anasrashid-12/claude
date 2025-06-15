@@ -1,15 +1,16 @@
 # backend/celery_app.py
 from celery import Celery
 import os
+from logging_config import logger
 
 celery_app = Celery(
-    "tasks",
-    broker=os.getenv("REDIS_URL", "redis://redis:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://redis:6379/0")
+    "worker",
+    broker=os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0"),
+    backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0"),
 )
 
-@celery_app.task
-def process_image_task(task_id, image_bytes, filename, user_id):
-    # Placeholder for sending to AI service
-    print(f"Processing image {filename} for user {user_id}")
-    return True
+celery_app.conf.task_routes = {
+    "workers.image_tasks.*": {"queue": "image_queue"},
+}
+
+logger.info("Celery app initialized")
