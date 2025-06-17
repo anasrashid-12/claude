@@ -1,11 +1,10 @@
-// frontend/src/app/dashboard/upload/page.tsx
 'use client'
 
 import { useState } from "react"
 
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null)
-  const [shop, setShop] = useState('ai-image-app-dev-store.myshopify.com') // Replace with dynamic value in production
+  const shop = 'ai-image-app-dev-store.myshopify.com' // Static value for now
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -15,7 +14,6 @@ export default function UploadPage() {
     setMessage('')
 
     try {
-      // Step 1: Upload the file to backend
       const formData = new FormData()
       formData.append('image', file)
 
@@ -27,7 +25,6 @@ export default function UploadPage() {
       const uploadData = await uploadRes.json()
       const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${uploadData.filename}`
 
-      // Step 2: Call image/process to queue the job
       const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

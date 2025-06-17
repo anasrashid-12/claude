@@ -8,7 +8,7 @@ import {
   Spinner,
   Badge,
   Thumbnail,
-  Layout,
+  Grid,
   EmptyState,
   Frame,
 } from "@shopify/polaris";
@@ -51,13 +51,13 @@ export default function QueuePage() {
   const getBadge = (status: string) => {
     switch (status) {
       case "queued":
-        return <Badge status="info">Queued</Badge>;
+        return <Badge tone="info">Queued</Badge>;
       case "processed":
-        return <Badge status="success">Processed</Badge>;
+        return <Badge tone="success">Processed</Badge>;
       case "error":
-        return <Badge status="critical">Error</Badge>;
+        return <Badge tone="critical">Error</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge tone="attention">{status}</Badge>;
     }
   };
 
@@ -76,48 +76,43 @@ export default function QueuePage() {
             <p>Upload images from the Upload tab to begin processing.</p>
           </EmptyState>
         ) : (
-          <Layout>
+          <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
             {images.map((img) => (
-              <Layout.Section key={img.id} oneThird>
-                <Card>
-                  <Card.Section>
-                    <Text variant="headingSm" as="h3">
-                      {getBadge(img.status)}
-                    </Text>
-                  </Card.Section>
-                  <Card.Section>
+              <Card key={img.id}>
+                <Text variant="headingSm" as="h3">
+                  {getBadge(img.status)}
+                </Text>
+
+                <Text as="p" tone="subdued">
+                  Original:
+                </Text>
+                <Thumbnail
+                  size="large"
+                  source={img.image_url}
+                  alt="Original image"
+                />
+
+                {img.status === "processed" && img.processed_url && (
+                  <>
                     <Text as="p" tone="subdued">
-                      Original:
+                      Processed:
                     </Text>
                     <Thumbnail
                       size="large"
-                      source={img.image_url}
-                      alt="Original image"
+                      source={img.processed_url}
+                      alt="Processed image"
                     />
-                  </Card.Section>
-                  {img.status === "processed" && img.processed_url && (
-                    <Card.Section>
-                      <Text as="p" tone="subdued">
-                        Processed:
-                      </Text>
-                      <Thumbnail
-                        size="large"
-                        source={img.processed_url}
-                        alt="Processed image"
-                      />
-                    </Card.Section>
-                  )}
-                  {img.status === "error" && img.error_message && (
-                    <Card.Section>
-                      <Text tone="critical" as="p">
-                        Error: {img.error_message}
-                      </Text>
-                    </Card.Section>
-                  )}
-                </Card>
-              </Layout.Section>
+                  </>
+                )}
+
+                {img.status === "error" && img.error_message && (
+                  <Text tone="critical" as="p">
+                    Error: {img.error_message}
+                  </Text>
+                )}
+              </Card>
             ))}
-          </Layout>
+          </Grid>
         )}
       </Page>
     </Frame>

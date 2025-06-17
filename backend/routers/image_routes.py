@@ -1,7 +1,7 @@
 # backend/routers/image_routes.py
 from fastapi import APIRouter, HTTPException, Request
 from tasks.image_tasks import process_image_task
-from supabase import create_client
+from services.supabase import supabase
 import uuid
 import os
 import logging
@@ -10,15 +10,6 @@ image_router = APIRouter()
 
 # Initialize logger
 logger = logging.getLogger(__name__)
-
-# Supabase init with validation
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("Supabase credentials not set in environment")
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @image_router.post("/process")
 async def process_image(request: Request):

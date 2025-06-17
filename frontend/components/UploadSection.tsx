@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
+import Image from 'next/image'; // ✅ Use Next.js Image
 
 interface UploadSectionProps {
   shop: string;
@@ -13,11 +14,17 @@ export default function UploadSection({ shop }: UploadSectionProps) {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) {
-      setFile(selected);
-      setPreviewUrl(URL.createObjectURL(selected));
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
       setMessage(null);
     }
   };
@@ -29,29 +36,33 @@ export default function UploadSection({ shop }: UploadSectionProps) {
     setMessage(null);
 
     try {
-      // Upload image to a temporary public hosting service or Supabase bucket
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadRes = await axios.post('http://localhost:8001/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const uploadRes = await axios.post<{ url: string }>(
+        'http://localhost:8001/upload',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
 
-      const uploadedUrl = uploadRes.data.url;
+      const uploadedUrl = uploadRes.data?.url;
       if (!uploadedUrl) throw new Error('Image upload failed');
 
-      // Send image URL to backend queue
-      const processRes = await axios.post('http://localhost:8000/image/process', {
-        image_url: uploadedUrl,
-        shop,
-      });
+      const processRes = await axios.post<{ image_id: string }>(
+        'http://localhost:8000/image/process',
+        { image_url: uploadedUrl, shop }
+      );
 
-      setMessage(`Image queued successfully! ID: ${processRes.data.image_id}`);
+      setMessage(`✅ Image queued! ID: ${processRes.data.image_id}`);
       setFile(null);
       setPreviewUrl(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Upload error:', err);
-      setMessage(`Error: ${err?.response?.data?.detail || 'Upload failed'}`);
+      const message =
+        axios.isAxiosError(err) && err.response?.data?.detail
+          ? err.response.data.detail
+          : 'Upload failed';
+      setMessage(`❌ ${message}`);
     } finally {
       setUploading(false);
     }
@@ -69,11 +80,15 @@ export default function UploadSection({ shop }: UploadSectionProps) {
       />
 
       {previewUrl && (
-        <img
-          src={previewUrl}
-          alt="Preview"
-          className="w-48 h-48 object-cover rounded mb-4 border"
-        />
+        <div className="relative w-48 h-48 mb-4 border rounded overflow-hidden">
+          <Image
+            src={previewUrl}
+            alt="Preview"
+            layout="fill"
+            objectFit="cover"
+            className="rounded"
+          />
+        </div>
       )}
 
       <button
@@ -84,7 +99,11 @@ export default function UploadSection({ shop }: UploadSectionProps) {
         {uploading ? 'Uploading...' : 'Upload and Queue'}
       </button>
 
-      {message && <p className="mt-4 text-sm text-gray-700">{message}</p>}
+      {message && (
+        <p className="mt-4 text-sm text-gray-700 whitespace-pre-line">
+          {message}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,19 +1,37 @@
-// frontend/components/UploadForm.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { queueImage } from "../utils/api";
+import { useState, FormEvent } from 'react';
+import { queueImage } from '../utils/api';
 
-export default function UploadForm({ shop, onUpload }: { shop: string; onUpload: () => void }) {
-  const [imageUrl, setImageUrl] = useState("");
+interface UploadFormProps {
+  shop: string;
+  onUpload: () => void;
+}
 
-  const handleSubmit = async (e: any) => {
+export default function UploadForm({ shop, onUpload }: UploadFormProps) {
+  const [imageUrl, setImageUrl] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!imageUrl) return;
-    const res = await queueImage(imageUrl, shop);
-    if (res?.success) {
-      setImageUrl("");
-      onUpload();
+    setError('');
+
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+      setError('Please enter a valid image URL.');
+      return;
+    }
+
+    try {
+      const res = await queueImage(imageUrl, shop);
+      if (res?.success) {
+        setImageUrl('');
+        onUpload();
+      } else {
+        setError('Upload failed. Please try again.');
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError('Something went wrong.');
     }
   };
 
@@ -25,8 +43,13 @@ export default function UploadForm({ shop, onUpload }: { shop: string; onUpload:
         onChange={(e) => setImageUrl(e.target.value)}
         placeholder="Enter image URL"
         className="border p-3 rounded w-full"
+        required
       />
-      <button type="submit" className="bg-black text-white py-2 px-4 rounded hover:bg-gray-800">
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <button
+        type="submit"
+        className="bg-black text-white py-2 px-4 rounded hover:bg-gray-800 transition"
+      >
         Upload and Queue
       </button>
     </form>
