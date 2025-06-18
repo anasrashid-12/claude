@@ -1,53 +1,63 @@
-'use client'
+'use client';
 
-import { useState } from "react"
+import { useState, useEffect } from 'react';
+import useShop from '@/hooks/useShop';
 
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null)
-  const shop = 'ai-image-app-dev-store.myshopify.com' // Static value for now
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  const { shop, loading: shopLoading } = useShop();
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
   const handleUpload = async () => {
-    if (!file) return
-    setLoading(true)
-    setMessage('')
+    if (!file || !shop) return;
+
+    setLoading(true);
+    setMessage('');
 
     try {
-      const formData = new FormData()
-      formData.append('image', file)
+      const formData = new FormData();
+      formData.append('image', file);
 
+      // Upload image to backend
       const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
         method: 'POST',
         body: formData,
-      })
+      });
 
-      const uploadData = await uploadRes.json()
-      const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${uploadData.filename}`
+      if (!uploadRes.ok) throw new Error('Upload failed');
+      const uploadData = await uploadRes.json();
 
+      const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${uploadData.filename}`;
+
+      // Queue for processing
       const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_url: imageUrl, shop }),
-      })
+      });
 
-      const result = await processRes.json()
-
+      const result = await processRes.json();
       if (result.success) {
-        setMessage('✅ Image queued for processing!')
+        setMessage('✅ Image queued for processing!');
+        setFile(null);
       } else {
-        setMessage('❌ Failed to process image.')
+        setMessage('❌ Failed to process image.');
       }
-    } catch (error) {
-      console.error(error)
-      setMessage('❌ Something went wrong.')
+    } catch (err) {
+      console.error(err);
+      setMessage('❌ Something went wrong.');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
+  };
+
+  if (shopLoading) {
+    return <p className="text-gray-500 text-center mt-10">Loading...</p>;
   }
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-4">Upload Image</h1>
 
       <input
@@ -67,5 +77,5 @@ export default function UploadPage() {
 
       {message && <p className="mt-4 text-sm">{message}</p>}
     </div>
-  )
+  );
 }

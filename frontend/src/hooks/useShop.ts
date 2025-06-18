@@ -1,3 +1,4 @@
+// frontend/src/hooks/useShop.ts
 "use client";
 
 import { useEffect, useState } from 'react';

@@ -10,17 +10,23 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const checkSession = async () => {
-      const res = await fetch('/api/me');
-      if (res.status === 200) {
-        setLoading(false);
-      } else {
+      try {
+        const res = await fetch('/api/me');
+        if (res.status === 200) {
+          setLoading(false);
+        } else {
+          router.replace('/login');
+        }
+      } catch (err) {
+        console.error('Session check failed:', err);
         router.replace('/login');
       }
     };
-    checkSession();
-  }, []);
 
-  if (loading) return <div className="p-4">Loading...</div>;
+    checkSession();
+  }, [router]);
+
+  if (loading) return <div className="p-6 text-gray-600">Checking session...</div>;
 
   return <>{children}</>;
 }

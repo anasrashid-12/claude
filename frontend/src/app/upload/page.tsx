@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Page,
   Card,
@@ -19,11 +19,40 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isClient, setIsClient] = useState(false);
+  const [shop, setShop] = useState<string | null>(null);
+
+  // 👇 Fetch authenticated shop
+  useEffect(() => {
+    const fetchShop = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        setShop(data.shop);
+      } catch {
+        setShop(null);
+      }
+    };
+
+    fetchShop();
+  }, []);
+
+  // 👇 Safely memoize and clean up preview URL
+  const previewUrl = useMemo(() => {
+    if (files.length > 0) {
+      return URL.createObjectURL(files[0]);
+    }
+    return null;
+  }, [files]);
 
   useEffect(() => {
-    setIsClient(true);
-  }, []);
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   const handleDrop = (_dropFiles: unknown, acceptedFiles: File[]) => {
     setFiles(acceptedFiles);
@@ -31,6 +60,10 @@ export default function UploadPage() {
 
   const handleUpload = async () => {
     if (files.length === 0) return;
+    if (!shop) {
+      setError('Shop not authenticated. Please login again.');
+      return;
+    }
 
     setUploading(true);
     setError(null);
@@ -50,13 +83,8 @@ export default function UploadPage() {
 
       const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_url: imageUrl,
-          shop: 'ai-image-app-dev-store.myshopify.com',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl, shop }),
       });
 
       const result = await processRes.json();
@@ -65,11 +93,7 @@ export default function UploadPage() {
       setToastVisible(true);
       setFiles([]);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Upload failed');
-      }
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -81,11 +105,11 @@ export default function UploadPage() {
         <Card>
           <BlockStack gap="400">
             <DropZone allowMultiple={false} onDrop={handleDrop}>
-              {files.length > 0 && isClient ? (
+              {files.length > 0 && previewUrl ? (
                 <div className="flex items-center gap-2">
                   <Thumbnail
                     size="large"
-                    source={URL.createObjectURL(files[0])}
+                    source={previewUrl}
                     alt="Uploaded image"
                   />
                   <div>{files[0].name}</div>

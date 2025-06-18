@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   Page,
   Card,
@@ -11,7 +11,8 @@ import {
   Grid,
   EmptyState,
   Frame,
-} from "@shopify/polaris";
+  Box,
+} from '@shopify/polaris';
 
 interface ImageRecord {
   id: string;
@@ -23,12 +24,29 @@ interface ImageRecord {
 }
 
 export default function QueuePage() {
+  const [shop, setShop] = useState<string | null>(null);
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const shop = "ai-image-app-dev-store.myshopify.com"; // Replace dynamically if needed
+  useEffect(() => {
+    const fetchShop = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+          credentials: 'include',
+        });
+        const data = await res.json();
+        setShop(data.shop);
+      } catch {
+        setShop(null);
+      }
+    };
+
+    fetchShop();
+  }, []);
 
   useEffect(() => {
+    if (!shop) return;
+
     const fetchImages = async () => {
       try {
         const res = await fetch(
@@ -37,27 +55,31 @@ export default function QueuePage() {
         const data = await res.json();
         setImages(data.images || []);
       } catch (err) {
-        console.error("Failed to fetch images", err);
+        console.error('Error fetching images:', err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchImages();
-    const interval = setInterval(fetchImages, 5000); // Poll every 5s
+    const interval = setInterval(fetchImages, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [shop]);
 
   const getBadge = (status: string) => {
-    switch (status) {
-      case "queued":
+    switch (status.toLowerCase()) {
+      case 'queued':
         return <Badge tone="info">Queued</Badge>;
-      case "processed":
+      case 'processing':
+        return <Badge tone="attention">Processing</Badge>;
+      case 'completed':
+      case 'processed':
         return <Badge tone="success">Processed</Badge>;
-      case "error":
+      case 'failed':
+      case 'error':
         return <Badge tone="critical">Error</Badge>;
       default:
-        return <Badge tone="attention">{status}</Badge>;
+        return <Badge>{status}</Badge>;
     }
   };
 
@@ -65,52 +87,69 @@ export default function QueuePage() {
     <Frame>
       <Page title="Image Queue">
         {loading ? (
-          <div className="flex items-center justify-center p-8">
+          <div className="flex justify-center items-center p-10">
             <Spinner accessibilityLabel="Loading images" size="large" />
           </div>
-        ) : images.length === 0 ? (
+        ) : !shop ? (
           <EmptyState
-            heading="No images uploaded yet"
+            heading="Shop not authenticated"
             image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
           >
-            <p>Upload images from the Upload tab to begin processing.</p>
+            <p>Please login again to continue.</p>
+          </EmptyState>
+        ) : images.length === 0 ? (
+          <EmptyState
+            heading="No images in the queue"
+            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
+          >
+            <p>Upload an image to get started.</p>
           </EmptyState>
         ) : (
           <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
             {images.map((img) => (
-              <Card key={img.id}>
-                <Text variant="headingSm" as="h3">
-                  {getBadge(img.status)}
-                </Text>
-
-                <Text as="p" tone="subdued">
-                  Original:
-                </Text>
-                <Thumbnail
-                  size="large"
-                  source={img.image_url}
-                  alt="Original image"
-                />
-
-                {img.status === "processed" && img.processed_url && (
-                  <>
-                    <Text as="p" tone="subdued">
-                      Processed:
+              <Box key={img.id} padding="300">
+                <Card>
+                  <Box padding="200">
+                    <Text variant="headingSm" as="h3">
+                      {getBadge(img.status)}
                     </Text>
-                    <Thumbnail
-                      size="large"
-                      source={img.processed_url}
-                      alt="Processed image"
-                    />
-                  </>
-                )}
 
-                {img.status === "error" && img.error_message && (
-                  <Text tone="critical" as="p">
-                    Error: {img.error_message}
-                  </Text>
-                )}
-              </Card>
+                    <Box paddingBlockStart="200">
+                      <Text as="p" tone="subdued">Original:</Text>
+                      <Thumbnail
+                        size="large"
+                        source={img.image_url}
+                        alt={`Original image ${img.id}`}
+                      />
+                    </Box>
+
+                    {img.status === 'processed' || img.status === 'completed' ? (
+                      img.processed_url ? (
+                        <Box paddingBlockStart="200">
+                          <Text as="p" tone="subdued">Processed:</Text>
+                          <Thumbnail
+                            size="large"
+                            source={img.processed_url}
+                            alt={`Processed image ${img.id}`}
+                          />
+                        </Box>
+                      ) : (
+                        <Text tone="critical" as="p">
+                          Processed URL missing
+                        </Text>
+                      )
+                    ) : null}
+
+                    {img.status === 'failed' || img.status === 'error' ? (
+                      <Box paddingBlockStart="200">
+                        <Text tone="critical" as="p">
+                          Error: {img.error_message}
+                        </Text>
+                      </Box>
+                    ) : null}
+                  </Box>
+                </Card>
+              </Box>
             ))}
           </Grid>
         )}

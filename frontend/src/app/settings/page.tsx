@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   Card,
   Page,
@@ -12,16 +12,79 @@ import {
   Frame,
   Toast,
   BlockStack,
-} from "@shopify/polaris";
+  Spinner,
+  Banner,
+} from '@shopify/polaris';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client (client-side safe)
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function SettingsPage() {
   const [backgroundRemoval, setBackgroundRemoval] = useState(true);
   const [optimizeImages, setOptimizeImages] = useState(true);
   const [toastActive, setToastActive] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [shop, setShop] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSave = () => {
-    // TODO: Save to Supabase or localStorage
-    setToastActive(true);
+  // Fetch authenticated shop & load settings
+  useEffect(() => {
+    const fetchShopAndSettings = async () => {
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error('Authentication failed');
+
+        const data = await res.json();
+        setShop(data.shop);
+
+        // Load saved settings for this shop
+        const { data: settings, error: fetchError } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('shop', data.shop)
+          .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw fetchError;
+        }
+
+        if (settings) {
+          setBackgroundRemoval(settings.background_removal);
+          setOptimizeImages(settings.optimize_images);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopAndSettings();
+  }, []);
+
+  const handleSave = async () => {
+    if (!shop) {
+      setError('Shop not found. Please re-authenticate.');
+      return;
+    }
+
+    const { error: upsertError } = await supabase.from('settings').upsert({
+      shop,
+      background_removal: backgroundRemoval,
+      optimize_images: optimizeImages,
+    });
+
+    if (upsertError) {
+      setError(upsertError.message);
+    } else {
+      setToastActive(true);
+    }
   };
 
   return (
@@ -29,35 +92,50 @@ export default function SettingsPage() {
       <Page title="Image Processing Settings">
         <Layout>
           <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">
-                  Preferences
-                </Text>
+            {loading ? (
+              <Spinner accessibilityLabel="Loading settings..." size="large" />
+            ) : (
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">
+                    Preferences
+                  </Text>
 
-                <InlineStack gap="400" wrap={false}>
-                  <Checkbox
-                    label="Remove background from images"
-                    checked={backgroundRemoval}
-                    onChange={() => setBackgroundRemoval(!backgroundRemoval)}
-                  />
-                  <Checkbox
-                    label="Optimize images for web"
-                    checked={optimizeImages}
-                    onChange={() => setOptimizeImages(!optimizeImages)}
-                  />
-                </InlineStack>
+                  <BlockStack gap="200">
+                    <Checkbox
+                      label="Remove background from images"
+                      checked={backgroundRemoval}
+                      onChange={() => setBackgroundRemoval(!backgroundRemoval)}
+                    />
+                    <Checkbox
+                      label="Optimize images for web"
+                      checked={optimizeImages}
+                      onChange={() => setOptimizeImages(!optimizeImages)}
+                    />
+                  </BlockStack>
 
-                <Button onClick={handleSave} variant="primary">
-                  Save Settings
-                </Button>
-              </BlockStack>
-            </Card>
+                  <InlineStack align="end">
+                    <Button variant="primary" onClick={handleSave}>
+                      Save Settings
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
+
+            {error && (
+              <Banner title="Error" tone="critical">
+                <p>{error}</p>
+              </Banner>
+            )}
           </Layout.Section>
         </Layout>
 
         {toastActive && (
-          <Toast content="Settings saved" onDismiss={() => setToastActive(false)} />
+          <Toast
+            content="Settings saved"
+            onDismiss={() => setToastActive(false)}
+          />
         )}
       </Page>
     </Frame>

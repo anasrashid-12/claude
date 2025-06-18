@@ -1,3 +1,4 @@
+// frontend/components/UploadForm.tsx
 'use client';
 
 import { useState, FormEvent } from 'react';
@@ -11,13 +12,16 @@ interface UploadFormProps {
 export default function UploadForm({ shop, onUpload }: UploadFormProps) {
   const [imageUrl, setImageUrl] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
 
-    if (!imageUrl || !imageUrl.startsWith('http')) {
-      setError('Please enter a valid image URL.');
+    if (!imageUrl.startsWith('http')) {
+      setError('⚠️ Please enter a valid image URL.');
+      setSubmitting(false);
       return;
     }
 
@@ -27,30 +31,33 @@ export default function UploadForm({ shop, onUpload }: UploadFormProps) {
         setImageUrl('');
         onUpload();
       } else {
-        setError('Upload failed. Please try again.');
+        setError('❌ Upload failed. Please try again.');
       }
     } catch (err) {
       console.error('Upload error:', err);
-      setError('Something went wrong.');
+      setError('❌ Something went wrong.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <input
         type="url"
         value={imageUrl}
         onChange={(e) => setImageUrl(e.target.value)}
-        placeholder="Enter image URL"
-        className="border p-3 rounded w-full"
+        placeholder="Enter direct image URL"
+        className="border border-gray-300 p-3 rounded w-full"
         required
       />
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <button
         type="submit"
-        className="bg-black text-white py-2 px-4 rounded hover:bg-gray-800 transition"
+        disabled={submitting}
+        className="bg-black text-white py-2 px-4 rounded hover:bg-gray-800 disabled:opacity-50"
       >
-        Upload and Queue
+        {submitting ? 'Uploading...' : 'Upload and Queue'}
       </button>
     </form>
   );

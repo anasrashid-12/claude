@@ -1,59 +1,75 @@
 'use client';
 
 import { useState } from 'react';
-import { Page, Layout, TextField, Button, Card, Box, Text, Banner } from '@shopify/polaris';
+import {
+  Page,
+  Text,
+  TextField,
+  Button,
+  Card,
+  Box,
+  InlineError,
+} from '@shopify/polaris';
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
-    if (!shop || !shop.endsWith('.myshopify.com')) {
-      setError('Please enter a valid Shopify store like "example.myshopify.com"');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const input = shop.trim().toLowerCase();
+    const shopDomain = input.endsWith('.myshopify.com')
+      ? input
+      : `${input}.myshopify.com`;
+
+    const isValid = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shopDomain);
+    if (!isValid) {
+      setError('Please enter a valid Shopify store like "example" or "example.myshopify.com"');
       return;
     }
 
-    setError('');
     setLoading(true);
-    window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(shop)}`;
+    try {
+      const installUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(shopDomain)}`;
+      window.location.href = installUrl;
+    } catch (err) {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Page title="Maxflow Image App - Login">
-      <Layout>
-        <Layout.Section>
-          <Card>
-            <Box padding="400">
-              <Text as="h2" variant="headingMd">
-                Connect your Shopify store
-              </Text>
+    <Page>
+      <div className="max-w-md mx-auto pt-40">
+        <Card padding="300" roundedAbove="sm">
+          <form onSubmit={handleSubmit}>
+            <Text as="h1" variant="headingLg" alignment="center">
+              Enter Your Shopify Store
+            </Text>
 
-              <div style={{ marginTop: '1rem' }}>
-                <TextField
-                  label="Enter your Shopify store domain"
-                  value={shop}
-                  onChange={setShop}
-                  autoComplete="off"
-                  placeholder="example.myshopify.com"
-                />
-              </div>
-
-              {error && (
-                <div style={{ marginTop: '1rem' }}>
-                  <Banner tone="critical">{error}</Banner>
-                </div>
-              )}
-
-              <div style={{ marginTop: '1rem' }}>
-                <Button onClick={handleLogin} loading={loading} variant="primary">
-                  Connect Store
-                </Button>
-              </div>
+            <Box paddingBlockStart="200">
+              <TextField
+                label="Shop Domain"
+                placeholder="example or example.myshopify.com"
+                value={shop}
+                onChange={setShop}
+                autoComplete="off"
+                error={error ? <InlineError message={error} fieldID="shop" /> : undefined}
+              />
             </Box>
-          </Card>
-        </Layout.Section>
-      </Layout>
+
+            <div className="pt-6 flex justify-center">
+              <Button submit variant="primary" loading={loading} disabled={!shop}>
+                Continue
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
     </Page>
   );
 }
