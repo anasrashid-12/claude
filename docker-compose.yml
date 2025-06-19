@@ -1,64 +1,36 @@
-version: '3.9'
+version: '3.8'
 
 services:
   backend:
     build: ./backend
-    container_name: backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
-    environment:
-      - SHOPIFY_API_KEY=your_key
-      - SHOPIFY_API_SECRET=your_secret
-      - BACKEND_URL=http://backend:8000
-      - SUPABASE_URL=https://your-project.supabase.co
-      - SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+    env_file:
+      - .env
     depends_on:
       - redis
-      - ai-api
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8001:8001"
 
   redis:
-    image: redis:7
-    container_name: redis
+    image: redis:alpine
     ports:
       - "6379:6379"
 
-  celery_worker:
-    build:
-      context: ./backend
-    container_name: celery_worker
-    command: celery -A celery_app.celery worker --loglevel=info
-    volumes:
-      - ./backend:/app
+  worker:
+    build: ./backend
+    command: celery -A celery_app.celery_app worker --loglevel=info
     depends_on:
       - redis
-      - backend
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - SUPABASE_URL=https://your-project.supabase.co
-      - SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-  ai-api:
-    build: ./ai-service
-    container_name: ai-api
-    ports:
-      - "8001:8000"
-    volumes:
-      - ./ai-service:/app
-
-  flower:
-    image: mher/flower
-    container_name: flower
-    command: flower --broker=redis://redis:6379/0
-    ports:
-      - "5555:5555"
-    depends_on:
-      - redis
+    env_file:
+      - .env
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+    env_file:
+      - .env

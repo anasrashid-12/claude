@@ -1,16 +1,19 @@
-// frontend/src/hooks/useAuth.ts
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function useAuth() {
+/**
+ * Checks if the user/shop is authenticated.
+ * Redirects to /login if unauthenticated (by default).
+ */
+export default function useAuth(redirectTo = '/login') {
   const [shop, setShop] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    async function fetchShop() {
+    const checkSession = async () => {
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
           credentials: 'include',
@@ -20,14 +23,15 @@ export default function useAuth() {
         const data = await res.json();
         setShop(data.shop);
       } catch (err) {
-        router.push('/login'); // Redirect to login if no session
+        console.warn('Unauthenticated - redirecting');
+        router.push(redirectTo);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    fetchShop();
-  }, [router]);
+    checkSession();
+  }, [router, redirectTo]);
 
   return { shop, loading };
 }
