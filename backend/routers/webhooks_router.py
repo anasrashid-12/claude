@@ -8,7 +8,7 @@ import hashlib
 import base64
 import logging
 
-router = APIRouter()
+webhook_router = APIRouter()
 
 # Environment variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -26,7 +26,7 @@ def verify_webhook(hmac_header: str, data: bytes) -> bool:
     return hmac.compare_digest(hmac_header, expected_hmac)
 
 # App uninstall webhook endpoint
-@router.post("/webhooks/uninstall")
+@webhook_router.post("/webhooks/uninstall")
 async def handle_uninstall(
     request: Request,
     x_shopify_hmac_sha256: str = Header(None),
@@ -48,3 +48,5 @@ async def handle_uninstall(
     logger.info(f"[Webhook] Uninstalled shop deleted from DB: {shop}")
 
     return {"success": True, "message": f"Shop {shop} removed successfully"}
+
+__all__ = ["webhook_router"]

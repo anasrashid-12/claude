@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import useShop from '@/hooks/useShop';
 
 export default function UploadPage() {
@@ -19,7 +19,6 @@ export default function UploadPage() {
       const formData = new FormData();
       formData.append('image', file);
 
-      // Upload image to backend
       const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
         method: 'POST',
         body: formData,
@@ -30,7 +29,6 @@ export default function UploadPage() {
 
       const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${uploadData.filename}`;
 
-      // Queue for processing
       const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,8 +42,7 @@ export default function UploadPage() {
       } else {
         setMessage('❌ Failed to process image.');
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       setMessage('❌ Something went wrong.');
     } finally {
       setLoading(false);

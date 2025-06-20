@@ -9,7 +9,7 @@ import httpx
 import time
 import logging
 
-router = APIRouter()
+auth_callback_router = APIRouter()
 
 # Environment variables
 SHOPIFY_API_KEY = os.getenv("SHOPIFY_API_KEY")
@@ -60,7 +60,7 @@ async def register_app_uninstall_webhook(shop: str, access_token: str):
             logger.error(f"[Webhook] Registration error for shop {shop}: {e}")
 
 # OAuth Callback Route
-@router.get("/callback")
+@auth_callback_router.get("/callback")
 async def auth_callback(request: Request):
     params = dict(request.query_params)
     shop = params.get("shop")
@@ -119,3 +119,6 @@ async def auth_callback(request: Request):
     )
 
     return response
+
+# This must be at the bottom
+__all__ = ["auth_callback_router"]

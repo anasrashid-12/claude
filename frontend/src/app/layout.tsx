@@ -1,20 +1,19 @@
-// frontend/app/layout.tsx
-import './globals.css';
+// src/app/layout.tsx
 import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Maxflow Image App',
   description: 'Shopify AI Image Processing Dashboard for product images',
   icons: {
-    icon: '/favicon.ico', // Optional: Add a favicon in public/
+    icon: '/favicon.ico',
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head />
-      <body className="bg-gray-50 text-gray-900 min-h-screen antialiased">
+    <html lang="en">
+      <body>
         {children}
       </body>
     </html>

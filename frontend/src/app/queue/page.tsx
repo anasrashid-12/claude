@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ClientLayout from '../../../components/ClientLayout'; 
 import {
   Page,
   Card,
@@ -84,76 +85,78 @@ export default function QueuePage() {
   };
 
   return (
-    <Frame>
-      <Page title="Image Queue">
-        {loading ? (
-          <div className="flex justify-center items-center p-10">
-            <Spinner accessibilityLabel="Loading images" size="large" />
-          </div>
-        ) : !shop ? (
-          <EmptyState
-            heading="Shop not authenticated"
-            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
-          >
-            <p>Please login again to continue.</p>
-          </EmptyState>
-        ) : images.length === 0 ? (
-          <EmptyState
-            heading="No images in the queue"
-            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
-          >
-            <p>Upload an image to get started.</p>
-          </EmptyState>
-        ) : (
-          <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
-            {images.map((img) => (
-              <Box key={img.id} padding="300">
-                <Card>
-                  <Box padding="200">
-                    <Text variant="headingSm" as="h3">
-                      {getBadge(img.status)}
-                    </Text>
+    <ClientLayout>
+      <Frame>
+        <Page title="Image Queue">
+          {loading ? (
+            <div className="flex justify-center items-center p-10">
+              <Spinner accessibilityLabel="Loading images" size="large" />
+            </div>
+          ) : !shop ? (
+            <EmptyState
+              heading="Shop not authenticated"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
+            >
+              <p>Please login again to continue.</p>
+            </EmptyState>
+          ) : images.length === 0 ? (
+            <EmptyState
+              heading="No images in the queue"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
+            >
+              <p>Upload an image to get started.</p>
+            </EmptyState>
+          ) : (
+            <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
+              {images.map((img) => (
+                <Box key={img.id} padding="300">
+                  <Card>
+                    <Box padding="200">
+                      <Text variant="headingSm" as="h3">
+                        {getBadge(img.status)}
+                      </Text>
 
-                    <Box paddingBlockStart="200">
-                      <Text as="p" tone="subdued">Original:</Text>
-                      <Thumbnail
-                        size="large"
-                        source={img.image_url}
-                        alt={`Original image ${img.id}`}
-                      />
-                    </Box>
-
-                    {img.status === 'processed' || img.status === 'completed' ? (
-                      img.processed_url ? (
-                        <Box paddingBlockStart="200">
-                          <Text as="p" tone="subdued">Processed:</Text>
-                          <Thumbnail
-                            size="large"
-                            source={img.processed_url}
-                            alt={`Processed image ${img.id}`}
-                          />
-                        </Box>
-                      ) : (
-                        <Text tone="critical" as="p">
-                          Processed URL missing
-                        </Text>
-                      )
-                    ) : null}
-
-                    {img.status === 'failed' || img.status === 'error' ? (
                       <Box paddingBlockStart="200">
-                        <Text tone="critical" as="p">
-                          Error: {img.error_message}
-                        </Text>
+                        <Text as="p" tone="subdued">Original:</Text>
+                        <Thumbnail
+                          size="large"
+                          source={img.image_url}
+                          alt={`Original image ${img.id}`}
+                        />
                       </Box>
-                    ) : null}
-                  </Box>
-                </Card>
-              </Box>
-            ))}
-          </Grid>
-        )}
-      </Page>
-    </Frame>
+
+                      {img.status === 'processed' || img.status === 'completed' ? (
+                        img.processed_url ? (
+                          <Box paddingBlockStart="200">
+                            <Text as="p" tone="subdued">Processed:</Text>
+                            <Thumbnail
+                              size="large"
+                              source={img.processed_url}
+                              alt={`Processed image ${img.id}`}
+                            />
+                          </Box>
+                        ) : (
+                          <Text tone="critical" as="p">
+                            Processed URL missing
+                          </Text>
+                        )
+                      ) : null}
+
+                      {(img.status === 'failed' || img.status === 'error') && (
+                        <Box paddingBlockStart="200">
+                          <Text tone="critical" as="p">
+                            Error: {img.error_message}
+                          </Text>
+                        </Box>
+                      )}
+                    </Box>
+                  </Card>
+                </Box>
+              ))}
+            </Grid>
+          )}
+        </Page>
+      </Frame>
+    </ClientLayout>
   );
 }

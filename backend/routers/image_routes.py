@@ -1,14 +1,10 @@
-# backend/routers/image_routes.py
 from fastapi import APIRouter, HTTPException, Request
 from tasks.image_tasks import process_image_task
 from services.supabase import supabase
 import uuid
-import os
 import logging
 
 image_router = APIRouter()
-
-# Initialize logger
 logger = logging.getLogger(__name__)
 
 @image_router.post("/process")
@@ -33,6 +29,7 @@ async def process_image(request: Request):
         if result.error:
             raise HTTPException(status_code=500, detail="Supabase insert failed")
 
+        # Send to Celery (which will use MakeIt3D API now)
         task = process_image_task.delay(image_id, image_url)
 
         return {
@@ -61,17 +58,21 @@ async def get_image_status(image_id: str):
                 "processed_url": result.data.get("processed_url"),
                 "error": result.data.get("error_message")
             }
-        else:
-            raise HTTPException(status_code=404, detail="Image not found")
+
+        raise HTTPException(status_code=404, detail="Image not found")
 
     except Exception as e:
         logger.error(f"Fetch status error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
+
 @image_router.get("/supabase/get-images")
 async def get_images_by_shop(shop: str):
     try:
         result = supabase.table("images").select("*").eq("shop", shop).order("created_at", desc=True).execute()
-        return { "images": result.data }
+        return {"images": result.data}
     except Exception as e:
+        logger.error(f"Error fetching images by shop: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+__all__ = ["image_router"]

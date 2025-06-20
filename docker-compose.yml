@@ -1,36 +1,41 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+
   backend:
     build: ./backend
+    container_name: backend
     ports:
       - "8000:8000"
     env_file:
       - .env
     depends_on:
       - redis
-
-  ai-service:
-    build: ./ai-service
-    ports:
-      - "8001:8001"
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
+    volumes:
+      - ./uploads:/app/uploads  # ensure uploaded images persist
 
   worker:
     build: ./backend
+    container_name: celery_worker
     command: celery -A celery_app.celery_app worker --loglevel=info
-    depends_on:
-      - redis
     env_file:
       - .env
+    depends_on:
+      - redis
+    volumes:
+      - ./uploads:/app/uploads  # same shared volume for processing
 
   frontend:
     build: ./frontend
+    container_name: frontend
     ports:
       - "3000:3000"
     env_file:
       - .env
+    depends_on:
+      - backend

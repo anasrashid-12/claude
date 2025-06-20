@@ -20,7 +20,7 @@ export default function useShop() {
         if (!res.ok) throw new Error('Unauthenticated');
         const data = await res.json();
         setShop(data.shop);
-      } catch (err) {
+      } catch {
         console.warn('Failed to fetch shop session');
         setShop(null);
       } finally {

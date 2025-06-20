@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
         'Content-Type': 'application/json',
       },
     });
-  } catch (error) {
+  } catch {
     return new NextResponse(JSON.stringify({ error: 'Session check failed' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

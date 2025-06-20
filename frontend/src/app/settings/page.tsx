@@ -16,8 +16,8 @@ import {
   Banner,
 } from '@shopify/polaris';
 import { createClient } from '@supabase/supabase-js';
+import ClientLayout from '../../../components/ClientLayout'; // ✅ Polaris wrapper
 
-// Initialize Supabase client (client-side safe)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,19 +31,18 @@ export default function SettingsPage() {
   const [shop, setShop] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch authenticated shop & load settings
   useEffect(() => {
     const fetchShopAndSettings = async () => {
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
           credentials: 'include',
         });
+
         if (!res.ok) throw new Error('Authentication failed');
 
-        const data = await res.json();
+        const data: { shop: string } = await res.json();
         setShop(data.shop);
 
-        // Load saved settings for this shop
         const { data: settings, error: fetchError } = await supabase
           .from('settings')
           .select('*')
@@ -51,14 +50,15 @@ export default function SettingsPage() {
           .single();
 
         if (fetchError && fetchError.code !== 'PGRST116') {
-          throw fetchError;
+          throw new Error(fetchError.message);
         }
 
         if (settings) {
           setBackgroundRemoval(settings.background_removal);
           setOptimizeImages(settings.optimize_images);
         }
-      } catch (err: any) {
+      } catch (e) {
+        const err = e as Error;
         setError(err.message || 'Failed to load settings');
       } finally {
         setLoading(false);
@@ -88,56 +88,58 @@ export default function SettingsPage() {
   };
 
   return (
-    <Frame>
-      <Page title="Image Processing Settings">
-        <Layout>
-          <Layout.Section>
-            {loading ? (
-              <Spinner accessibilityLabel="Loading settings..." size="large" />
-            ) : (
-              <Card>
-                <BlockStack gap="400">
-                  <Text as="h2" variant="headingMd">
-                    Preferences
-                  </Text>
+    <ClientLayout>
+      <Frame>
+        <Page title="Image Processing Settings">
+          <Layout>
+            <Layout.Section>
+              {loading ? (
+                <Spinner accessibilityLabel="Loading settings..." size="large" />
+              ) : (
+                <Card>
+                  <BlockStack gap="400">
+                    <Text as="h2" variant="headingMd">
+                      Preferences
+                    </Text>
 
-                  <BlockStack gap="200">
-                    <Checkbox
-                      label="Remove background from images"
-                      checked={backgroundRemoval}
-                      onChange={() => setBackgroundRemoval(!backgroundRemoval)}
-                    />
-                    <Checkbox
-                      label="Optimize images for web"
-                      checked={optimizeImages}
-                      onChange={() => setOptimizeImages(!optimizeImages)}
-                    />
+                    <BlockStack gap="200">
+                      <Checkbox
+                        label="Remove background from images"
+                        checked={backgroundRemoval}
+                        onChange={() => setBackgroundRemoval(!backgroundRemoval)}
+                      />
+                      <Checkbox
+                        label="Optimize images for web"
+                        checked={optimizeImages}
+                        onChange={() => setOptimizeImages(!optimizeImages)}
+                      />
+                    </BlockStack>
+
+                    <InlineStack align="end">
+                      <Button variant="primary" onClick={handleSave}>
+                        Save Settings
+                      </Button>
+                    </InlineStack>
                   </BlockStack>
+                </Card>
+              )}
 
-                  <InlineStack align="end">
-                    <Button variant="primary" onClick={handleSave}>
-                      Save Settings
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-              </Card>
-            )}
+              {error && (
+                <Banner title="Error" tone="critical">
+                  <p>{error}</p>
+                </Banner>
+              )}
+            </Layout.Section>
+          </Layout>
 
-            {error && (
-              <Banner title="Error" tone="critical">
-                <p>{error}</p>
-              </Banner>
-            )}
-          </Layout.Section>
-        </Layout>
-
-        {toastActive && (
-          <Toast
-            content="Settings saved"
-            onDismiss={() => setToastActive(false)}
-          />
-        )}
-      </Page>
-    </Frame>
+          {toastActive && (
+            <Toast
+              content="Settings saved"
+              onDismiss={() => setToastActive(false)}
+            />
+          )}
+        </Page>
+      </Frame>
+    </ClientLayout>
   );
 }

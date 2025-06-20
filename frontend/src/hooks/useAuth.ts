@@ -22,7 +22,7 @@ export default function useAuth(redirectTo = '/login') {
         if (!res.ok) throw new Error('Unauthorized');
         const data = await res.json();
         setShop(data.shop);
-      } catch (err) {
+      } catch {
         console.warn('Unauthenticated - redirecting');
         router.push(redirectTo);
       } finally {

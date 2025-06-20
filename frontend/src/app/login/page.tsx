@@ -10,6 +10,7 @@ import {
   Box,
   InlineError,
 } from '@shopify/polaris';
+import ClientLayout from '../../../components/ClientLayout'; // ✅ Polaris provider wrapper
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
@@ -35,7 +36,7 @@ export default function LoginPage() {
     try {
       const installUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(shopDomain)}`;
       window.location.href = installUrl;
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
@@ -43,33 +44,35 @@ export default function LoginPage() {
   };
 
   return (
-    <Page>
-      <div className="max-w-md mx-auto pt-40">
-        <Card padding="300" roundedAbove="sm">
-          <form onSubmit={handleSubmit}>
-            <Text as="h1" variant="headingLg" alignment="center">
-              Enter Your Shopify Store
-            </Text>
+    <ClientLayout>
+      <Page>
+        <div className="max-w-md mx-auto pt-40">
+          <Card padding="300" roundedAbove="sm">
+            <form onSubmit={handleSubmit}>
+              <Text as="h1" variant="headingLg" alignment="center">
+                Enter Your Shopify Store
+              </Text>
 
-            <Box paddingBlockStart="200">
-              <TextField
-                label="Shop Domain"
-                placeholder="example or example.myshopify.com"
-                value={shop}
-                onChange={setShop}
-                autoComplete="off"
-                error={error ? <InlineError message={error} fieldID="shop" /> : undefined}
-              />
-            </Box>
+              <Box paddingBlockStart="200">
+                <TextField
+                  label="Shop Domain"
+                  placeholder="example or example.myshopify.com"
+                  value={shop}
+                  onChange={setShop}
+                  autoComplete="off"
+                  error={error ? <InlineError message={error} fieldID="shop" /> : undefined}
+                />
+              </Box>
 
-            <div className="pt-6 flex justify-center">
-              <Button submit variant="primary" loading={loading} disabled={!shop}>
-                Continue
-              </Button>
-            </div>
-          </form>
-        </Card>
-      </div>
-    </Page>
+              <div className="pt-6 flex justify-center">
+                <Button submit variant="primary" loading={loading} disabled={!shop}>
+                  Continue
+                </Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+      </Page>
+    </ClientLayout>
   );
 }
