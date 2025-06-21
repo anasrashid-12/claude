@@ -26,9 +26,9 @@ def create_app():
 
     app.include_router(auth_callback_router, prefix="/auth")
     app.include_router(auth_install_router, prefix="/auth")
-    app.include_router(upload_router, prefix="/upload")
+    app.include_router(upload_router)
     app.include_router(image_router, prefix="/image")
-    app.include_router(me_router, prefix="/me")
+    app.include_router(me_router)
     app.include_router(webhook_router, prefix="/webhooks")
     app.include_router(fileserve_router, prefix="/uploads")
     app.add_middleware(RateLimitMiddleware)

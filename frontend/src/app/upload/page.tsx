@@ -45,6 +45,7 @@ export default function UploadPage() {
       const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
         method: 'POST',
         body: formData,
+        credentials: 'include', // required for JWT session cookie
       });
 
       const uploadData = await uploadRes.json();

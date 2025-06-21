@@ -112,9 +112,9 @@ async def auth_callback(request: Request):
     response.set_cookie(
         key="session",
         value=token,
-        httponly=True,
-        secure=False,  # Set to True in production with HTTPS
-        samesite="Lax",
+        httponly=True,       # stays True for security
+        secure=True,         # Must be True for cross-origin + SameSite=None
+        samesite="None",     # Required for cross-origin requests
         max_age=86400,
     )
 
