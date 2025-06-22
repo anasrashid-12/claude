@@ -22,13 +22,13 @@ services:
   worker:
     build: ./backend
     container_name: celery_worker
-    command: celery -A celery_app.celery_app worker --loglevel=info
+    command: celery -A celery_app worker --loglevel=info -Q image_queue
     env_file:
       - .env
     depends_on:
       - redis
     volumes:
-      - ./uploads:/app/uploads  # same shared volume for processing
+      - ./uploads:/app/uploads
 
   frontend:
     build: ./frontend

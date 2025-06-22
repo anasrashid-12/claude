@@ -16,7 +16,7 @@ import {
   Banner,
 } from '@shopify/polaris';
 import { createClient } from '@supabase/supabase-js';
-import ClientLayout from '../../../components/ClientLayout'; // ✅ Polaris wrapper
+import ClientLayout from '../../../../components/ClientLayout'; // ✅ Polaris wrapper
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

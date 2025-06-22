@@ -9,8 +9,10 @@ celery = Celery(
     backend=os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/0"),
 )
 
+import tasks.image_tasks  
+
 celery.conf.task_routes = {
-    "workers.image_tasks.*": {"queue": "image_queue"},
+    "tasks.image_tasks.*": {"queue": "image_queue"},
 }
 
 logger.info("Celery app initialized")

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import ClientLayout from '../../../components/ClientLayout'; 
+import ClientLayout from '../../../../components/ClientLayout';
 import {
   Page,
   Card,
@@ -36,9 +36,15 @@ export default function QueuePage() {
           credentials: 'include',
         });
         const data = await res.json();
-        setShop(data.shop);
-      } catch {
+        if (data?.shop) {
+          setShop(data.shop);
+        } else {
+          throw new Error('No shop returned');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching shop info:', error);
         setShop(null);
+        setLoading(false);
       }
     };
 
@@ -56,7 +62,7 @@ export default function QueuePage() {
         const data = await res.json();
         setImages(data.images || []);
       } catch (err) {
-        console.error('Error fetching images:', err);
+        console.error('❌ Error fetching images:', err);
       } finally {
         setLoading(false);
       }
@@ -73,11 +79,11 @@ export default function QueuePage() {
         return <Badge tone="info">Queued</Badge>;
       case 'processing':
         return <Badge tone="attention">Processing</Badge>;
-      case 'completed':
       case 'processed':
+      case 'completed':
         return <Badge tone="success">Processed</Badge>;
-      case 'failed':
       case 'error':
+      case 'failed':
         return <Badge tone="critical">Error</Badge>;
       default:
         return <Badge>{status}</Badge>;
@@ -125,27 +131,29 @@ export default function QueuePage() {
                         />
                       </Box>
 
-                      {img.status === 'processed' || img.status === 'completed' ? (
-                        img.processed_url ? (
-                          <Box paddingBlockStart="200">
-                            <Text as="p" tone="subdued">Processed:</Text>
-                            <Thumbnail
-                              size="large"
-                              source={img.processed_url}
-                              alt={`Processed image ${img.id}`}
-                            />
-                          </Box>
-                        ) : (
+                      {['processed', 'completed'].includes(img.status) && img.processed_url && (
+                        <Box paddingBlockStart="200">
+                          <Text as="p" tone="subdued">Processed:</Text>
+                          <Thumbnail
+                            size="large"
+                            source={img.processed_url}
+                            alt={`Processed image ${img.id}`}
+                          />
+                        </Box>
+                      )}
+
+                      {['processed', 'completed'].includes(img.status) && !img.processed_url && (
+                        <Box paddingBlockStart="200">
                           <Text tone="critical" as="p">
                             Processed URL missing
                           </Text>
-                        )
-                      ) : null}
+                        </Box>
+                      )}
 
-                      {(img.status === 'failed' || img.status === 'error') && (
+                      {['error', 'failed'].includes(img.status) && (
                         <Box paddingBlockStart="200">
                           <Text tone="critical" as="p">
-                            Error: {img.error_message}
+                            Error: {img.error_message || 'Unknown error'}
                           </Text>
                         </Box>
                       )}
