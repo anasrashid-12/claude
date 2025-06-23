@@ -8,42 +8,49 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
   const handleUpload = async () => {
     if (!file || !shop) return;
 
     setLoading(true);
     setMessage('');
+    setUploadedUrl(null);
 
     try {
       const formData = new FormData();
       formData.append('image', file);
 
+      // 1. Upload to backend
       const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
         method: 'POST',
         body: formData,
+        credentials: 'include', // Required for JWT session cookie
       });
 
       if (!uploadRes.ok) throw new Error('Upload failed');
       const uploadData = await uploadRes.json();
+      const imageUrl = uploadData.url;
 
-      const imageUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/uploads/${uploadData.filename}`;
-
+      // 2. Send to processing queue
       const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image_url: imageUrl, shop }),
       });
 
-      const result = await processRes.json();
-      if (result.success) {
-        setMessage('✅ Image queued for processing!');
-        setFile(null);
-      } else {
-        setMessage('❌ Failed to process image.');
+      const processData = await processRes.json();
+      if (!processRes.ok || !processData.success) {
+        console.error('Queue failed:', processData);
+        throw new Error('Processing queue failed');
       }
-    } catch {
-      setMessage('❌ Something went wrong.');
+
+      setMessage('✅ Image uploaded and queued for processing!');
+      setUploadedUrl(imageUrl);
+      setFile(null);
+    } catch (error) {
+      console.error(error);
+      setMessage('❌ Something went wrong during upload or processing.');
     } finally {
       setLoading(false);
     }
@@ -73,6 +80,13 @@ export default function UploadPage() {
       </button>
 
       {message && <p className="mt-4 text-sm">{message}</p>}
+
+      {uploadedUrl && (
+        <div className="mt-4">
+          <p className="text-sm text-gray-600">📸 Uploaded Image:</p>
+          <img src={uploadedUrl} alt="Uploaded" className="mt-2 rounded-lg shadow-md" />
+        </div>
+      )}
     </div>
   );
 }

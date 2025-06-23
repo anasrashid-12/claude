@@ -1,47 +1,75 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-import os
-import uuid
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie
+from fastapi.responses import JSONResponse
+from services.supabase import supabase
 from logging_config import logger
+import uuid
+import os
+import jwt
 
 upload_router = APIRouter()
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+BUCKET_NAME = "makeit3d-public"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+if not SUPABASE_URL:
+    raise RuntimeError("Missing SUPABASE_URL in environment")
 
 @upload_router.post("/upload")
-async def upload_image(image: UploadFile = File(...)):
+async def upload_image(request: Request, image: UploadFile = File(...), session: str = Cookie(None)):
     try:
-        # Ensure safe unique filename
+        # 🧠 Decode shop from JWT session
+        if not session:
+            raise HTTPException(status_code=401, detail="Missing session token")
+
+        payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
+        shop = payload.get("shop")
+        if not shop:
+            raise HTTPException(status_code=401, detail="Invalid session: missing shop")
+
+        # 🖼️ Generate unique filename and read content
         ext = os.path.splitext(image.filename)[-1]
         unique_filename = f"{uuid.uuid4().hex}{ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        content = await image.read()
 
-        # Save file
-        with open(file_path, "wb") as f:
-            f.write(await image.read())
+        # ☁️ Upload to Supabase Storage
+        response = supabase.storage.from_(BUCKET_NAME).upload(
+            unique_filename,
+            content,
+            {"content-type": image.content_type}
+        )
 
-        logger.info(f"[Upload] Image saved: {unique_filename}")
+        if hasattr(response, "error") and response.error:
+            logger.error(f"[Upload] Supabase error: {response.error.message}")
+            raise HTTPException(status_code=500, detail="Failed to upload to Supabase")
+
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{unique_filename}"
+        logger.info(f"[Upload] Image uploaded: {public_url}")
+
+        # 📝 Insert into Supabase `images` table
+        image_id = str(uuid.uuid4())
+        try:
+            supabase.table("images").insert({
+                "id": image_id,
+                "shop": shop,
+                "image_url": public_url,
+                "status": "queued"
+            }).execute()
+        except Exception as e:
+            logger.error(f"[Upload] DB insert failed: {e}")
+            raise HTTPException(status_code=500, detail="Upload succeeded but DB insert failed")
 
         return {
-            "message": "Uploaded",
+            "message": "Uploaded and logged",
             "filename": unique_filename,
-            "url": f"{BACKEND_URL}/uploads/{unique_filename}"
+            "url": public_url,
+            "image_id": image_id
         }
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid session token")
     except Exception as e:
         logger.error(f"[Upload] Failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload image")
-
-
-@upload_router.get("/uploads/{filename}")
-async def serve_uploaded_file(filename: str):
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
-        logger.warning(f"[Upload] File not found: {filename}")
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(path=file_path, media_type="image/png", filename=filename)
-
-__all__ = ["upload_router"]
+        raise HTTPException(status_code=500, detail="Upload failed")
