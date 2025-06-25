@@ -16,8 +16,6 @@ services:
       - .env
     depends_on:
       - redis
-    volumes:
-      - ./uploads:/app/uploads  # ensure uploaded images persist
 
   worker:
     build: ./backend
@@ -27,8 +25,7 @@ services:
       - .env
     depends_on:
       - redis
-    volumes:
-      - ./uploads:/app/uploads
+      - backend
 
   frontend:
     build: ./frontend

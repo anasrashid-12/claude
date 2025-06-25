@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import useShop from '../../hooks/useShop';
-import ImageGallery from '../../../components/ImageGallery';
+import useShop from '@/hooks/useShop';
 import ClientLayout from '../../../components/ClientLayout';
+import ImageGallery from '../../../components/ImageGallery';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -12,7 +12,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && !shop) {
-      router.push('/');
+      router.push('/login');
     }
   }, [loading, shop, router]);
 

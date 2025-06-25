@@ -10,7 +10,7 @@ import {
   Box,
   InlineError,
 } from '@shopify/polaris';
-import ClientLayout from '../../../components/ClientLayout'; // ✅ Polaris provider wrapper
+import ClientLayout from '../../../components/ClientLayout';
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
@@ -28,16 +28,21 @@ export default function LoginPage() {
 
     const isValid = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shopDomain);
     if (!isValid) {
-      setError('Please enter a valid Shopify store like "example" or "example.myshopify.com"');
+      setError(
+        '⚠️ Please enter a valid Shopify domain like "example" or "example.myshopify.com".'
+      );
       return;
     }
 
     setLoading(true);
     try {
-      const installUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(shopDomain)}`;
+      const installUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(
+        shopDomain
+      )}`;
       window.location.href = installUrl;
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      console.error('[Login] Redirect failed:', err);
+      setError('❌ Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -60,7 +65,11 @@ export default function LoginPage() {
                   value={shop}
                   onChange={setShop}
                   autoComplete="off"
-                  error={error ? <InlineError message={error} fieldID="shop" /> : undefined}
+                  error={
+                    error ? (
+                      <InlineError message={error} fieldID="shop" />
+                    ) : undefined
+                  }
                 />
               </Box>
 

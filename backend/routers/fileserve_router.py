@@ -1,17 +1,29 @@
-# backend/routers/fileserve_router.py
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from services.supabase import supabase
 import os
 
 fileserve_router = APIRouter()
 
-UPLOAD_DIR = "uploads"
+BUCKET_NAME = "makeit3d-public"
 
-@fileserve_router.get("/uploads/{filename}")
-async def serve_uploaded_file(filename: str):
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path=file_path, media_type="image/png", filename=filename) 
+@fileserve_router.get("/signed-url/{filename}")
+def generate_signed_url(filename: str):
+    try:
+        signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
+            path=filename,
+            expires_in=3600  # 1 hour
+        )
+
+        if signed.get("error"):
+            raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+
+        return {
+            "signed_url": signed.get("signedURL"),
+            "expires_in": 3600,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating signed URL: {str(e)}")
+
 
 __all__ = ["fileserve_router"]

@@ -1,75 +1,69 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie
-from fastapi.responses import JSONResponse
 from services.supabase import supabase
 from logging_config import logger
 import uuid
 import os
 import jwt
+import requests
 
 upload_router = APIRouter()
 
 BUCKET_NAME = "makeit3d-public"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
+JWT_SECRET = os.getenv("JWT_SECRET")
+MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
 
-if not SUPABASE_URL:
-    raise RuntimeError("Missing SUPABASE_URL in environment")
 
 @upload_router.post("/upload")
 async def upload_image(request: Request, image: UploadFile = File(...), session: str = Cookie(None)):
-    try:
-        # 🧠 Decode shop from JWT session
-        if not session:
-            raise HTTPException(status_code=401, detail="Missing session token")
+    if not session:
+        raise HTTPException(status_code=401, detail="Missing session token")
 
-        payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
-        shop = payload.get("shop")
-        if not shop:
-            raise HTTPException(status_code=401, detail="Invalid session: missing shop")
+    payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
+    shop = payload.get("shop")
 
-        # 🖼️ Generate unique filename and read content
-        ext = os.path.splitext(image.filename)[-1]
-        unique_filename = f"{uuid.uuid4().hex}{ext}"
-        content = await image.read()
+    if not shop:
+        raise HTTPException(status_code=401, detail="Invalid session")
 
-        # ☁️ Upload to Supabase Storage
-        response = supabase.storage.from_(BUCKET_NAME).upload(
-            unique_filename,
-            content,
-            {"content-type": image.content_type}
-        )
+    ext = os.path.splitext(image.filename)[-1]
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    content = await image.read()
 
-        if hasattr(response, "error") and response.error:
-            logger.error(f"[Upload] Supabase error: {response.error.message}")
-            raise HTTPException(status_code=500, detail="Failed to upload to Supabase")
+    # Upload to Supabase Storage
+    supabase.storage.from_(BUCKET_NAME).upload(
+        unique_filename, content, {"content-type": image.content_type}
+    )
 
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{unique_filename}"
-        logger.info(f"[Upload] Image uploaded: {public_url}")
+    your_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{unique_filename}"
 
-        # 📝 Insert into Supabase `images` table
-        image_id = str(uuid.uuid4())
-        try:
-            supabase.table("images").insert({
-                "id": image_id,
-                "shop": shop,
-                "image_url": public_url,
-                "status": "queued"
-            }).execute()
-        except Exception as e:
-            logger.error(f"[Upload] DB insert failed: {e}")
-            raise HTTPException(status_code=500, detail="Upload succeeded but DB insert failed")
+    # Upload to MakeIt3D Storage
+    makeit3d_upload = requests.post(
+        "https://api.makeit3d.io/auth/upload",
+        headers={"X-API-Key": MAKEIT3D_API_KEY, "Content-Type": "application/json"},
+        json={"source_url": your_url, "filename": unique_filename},
+        timeout=30,
+    )
 
-        return {
-            "message": "Uploaded and logged",
-            "filename": unique_filename,
-            "url": public_url,
-            "image_id": image_id
-        }
+    if makeit3d_upload.status_code != 200:
+        raise HTTPException(status_code=500, detail="Upload to MakeIt3D failed")
 
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Session expired")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid session token")
-    except Exception as e:
-        logger.error(f"[Upload] Failed: {e}")
-        raise HTTPException(status_code=500, detail="Upload failed")
+    makeit3d_url = makeit3d_upload.json().get("uploaded_url")
+
+    image_id = str(uuid.uuid4())
+    supabase.table("images").insert({
+        "id": image_id,
+        "shop": shop,
+        "image_url": your_url,
+        "makeit3d_url": makeit3d_url,
+        "status": "queued"
+    }).execute()
+
+    return {
+        "message": "Uploaded successfully",
+        "url": your_url,
+        "makeit3d_url": makeit3d_url,
+        "image_id": image_id
+    }
+
+
+__all__ = ["upload_router"]

@@ -3,10 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-/**
- * Checks if the user/shop is authenticated.
- * Redirects to /login if unauthenticated (by default).
- */
 export default function useAuth(redirectTo = '/login') {
   const [shop, setShop] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +19,7 @@ export default function useAuth(redirectTo = '/login') {
         const data = await res.json();
         setShop(data.shop);
       } catch {
-        console.warn('Unauthenticated - redirecting');
+        console.warn('[useAuth] ❌ Session invalid, redirecting');
         router.push(redirectTo);
       } finally {
         setLoading(false);

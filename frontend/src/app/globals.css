@@ -4,5 +4,5 @@
 @tailwind utilities;
 
 body {
-  @apply font-sans antialiased;
+  @apply font-sans antialiased bg-gray-50 text-gray-900;
 }

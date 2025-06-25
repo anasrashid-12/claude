@@ -1,90 +1,156 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useShop from '@/hooks/useShop';
+import { InboxIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function UploadPage() {
   const { shop, loading: shopLoading } = useShop();
-  const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<Record<string, number>>({});
+  const [messages, setMessages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
 
-  const handleUpload = async () => {
-    if (!file || !shop) return;
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const dropped = Array.from(e.dataTransfer.files);
+    setFiles((prev) => [...prev, ...dropped]);
+  };
 
-    setLoading(true);
-    setMessage('');
-    setUploadedUrl(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      // 1. Upload to backend
-      const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include', // Required for JWT session cookie
-      });
-
-      if (!uploadRes.ok) throw new Error('Upload failed');
-      const uploadData = await uploadRes.json();
-      const imageUrl = uploadData.url;
-
-      // 2. Send to processing queue
-      const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: imageUrl, shop }),
-      });
-
-      const processData = await processRes.json();
-      if (!processRes.ok || !processData.success) {
-        console.error('Queue failed:', processData);
-        throw new Error('Processing queue failed');
-      }
-
-      setMessage('✅ Image uploaded and queued for processing!');
-      setUploadedUrl(imageUrl);
-      setFile(null);
-    } catch (error) {
-      console.error(error);
-      setMessage('❌ Something went wrong during upload or processing.');
-    } finally {
-      setLoading(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selected = Array.from(e.target.files);
+      setFiles((prev) => [...prev, ...selected]);
     }
   };
 
+  const removeFile = (name: string) => {
+    setFiles((prev) => prev.filter((f) => f.name !== name));
+  };
+
+  const handleUpload = async () => {
+    if (!files.length || !shop) return;
+
+    setUploading(true);
+    const newProgress: Record<string, number> = {};
+    const newMessages: string[] = [];
+
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        // Upload to backend (handles Supabase + MakeIt3D)
+        const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) throw new Error('Upload failed');
+        const uploadData = await uploadRes.json();
+        const imageUrl = uploadData.url;
+
+        newProgress[file.name] = 100;
+        setProgress((prev) => ({ ...prev, ...newProgress }));
+
+        // Queue for processing
+        const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ image_url: imageUrl, shop }),
+        });
+
+        const processData = await processRes.json();
+        if (processRes.ok) {
+          newMessages.push(`✅ ${file.name} uploaded and queued`);
+        } else {
+          throw new Error(processData.detail || 'Processing failed');
+        }
+      } catch (error) {
+        console.error(error);
+        newProgress[file.name] = 0;
+        newMessages.push(`❌ ${file.name} failed`);
+      }
+
+      setProgress((prev) => ({ ...prev, ...newProgress }));
+    }
+
+    setMessages(newMessages);
+    setFiles([]);
+    setUploading(false);
+  };
+
   if (shopLoading) {
-    return <p className="text-gray-500 text-center mt-10">Loading...</p>;
+    return <p className="text-center text-gray-500 mt-10">Loading shop...</p>;
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-4">Upload Image</h1>
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-4">Upload Images</h1>
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="mb-4"
-      />
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
+        onClick={() => fileInputRef.current?.click()}
+        className="border-2 border-dashed border-gray-400 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:border-black"
+      >
+        <InboxIcon className="h-12 w-12 text-gray-500" />
+        <p className="text-gray-600">Drag & Drop files here or click to select</p>
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      {files.length > 0 && (
+        <div className="mt-6">
+          <h2 className="font-semibold mb-2">Files to Upload:</h2>
+          <ul className="space-y-2">
+            {files.map((file) => (
+              <li
+                key={file.name}
+                className="flex items-center justify-between border p-2 rounded"
+              >
+                <span className="truncate">{file.name}</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-24 bg-gray-200 rounded">
+                    <div
+                      className="h-2 bg-blue-600 rounded"
+                      style={{ width: `${progress[file.name] || 0}%` }}
+                    />
+                  </div>
+                  <XMarkIcon
+                    className="h-5 w-5 text-gray-500 hover:text-red-600 cursor-pointer"
+                    onClick={() => removeFile(file.name)}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <button
         onClick={handleUpload}
-        disabled={loading || !file}
-        className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800 disabled:opacity-50"
+        disabled={!files.length || uploading}
+        className="mt-6 px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
       >
-        {loading ? 'Uploading...' : 'Upload & Queue'}
+        {uploading ? 'Uploading...' : files.length > 1 ? 'Upload All' : 'Upload'}
       </button>
 
-      {message && <p className="mt-4 text-sm">{message}</p>}
-
-      {uploadedUrl && (
-        <div className="mt-4">
-          <p className="text-sm text-gray-600">📸 Uploaded Image:</p>
-          <img src={uploadedUrl} alt="Uploaded" className="mt-2 rounded-lg shadow-md" />
+      {messages.length > 0 && (
+        <div className="mt-6">
+          {messages.map((msg, idx) => (
+            <p key={idx} className="text-sm">
+              {msg}
+            </p>
+          ))}
         </div>
       )}
     </div>

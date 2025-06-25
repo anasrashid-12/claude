@@ -1,11 +1,11 @@
-# backend/routers/me_router.py
-from fastapi import APIRouter, Request, HTTPException, Cookie
+from fastapi import APIRouter, HTTPException, Cookie
 import jwt
 import os
 
 me_router = APIRouter()
 
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
+
 
 @me_router.get("/me")
 async def get_shop_info(session: str = Cookie(None)):
@@ -18,5 +18,6 @@ async def get_shop_info(session: str = Cookie(None)):
         raise HTTPException(status_code=401, detail="Session expired")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid session token")
+
 
 __all__ = ["me_router"]

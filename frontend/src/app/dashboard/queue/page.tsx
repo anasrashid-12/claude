@@ -1,23 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import ClientLayout from '../../../../components/ClientLayout';
+import useShop from '@/hooks/useShop';
+import { createClient } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
 import {
-  Page,
-  Card,
-  Text,
-  Spinner,
   Badge,
-  Thumbnail,
-  Grid,
-  EmptyState,
+  Card,
   Frame,
+  Grid,
+  Page,
+  Text,
+  EmptyState,
+  Spinner,
+  Thumbnail,
+  BlockStack,
   Box,
 } from '@shopify/polaris';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 interface ImageRecord {
   id: string;
-  shop: string;
   image_url: string;
   processed_url: string | null;
   status: string;
@@ -25,139 +32,149 @@ interface ImageRecord {
 }
 
 export default function QueuePage() {
-  const [shop, setShop] = useState<string | null>(null);
+  const { shop, loading: shopLoading } = useShop();
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchShop = async () => {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
-          credentials: 'include',
-        });
-        const data = await res.json();
-        if (data?.shop) {
-          setShop(data.shop);
-        } else {
-          throw new Error('No shop returned');
-        }
-      } catch (error) {
-        console.error('❌ Error fetching shop info:', error);
-        setShop(null);
-        setLoading(false);
-      }
-    };
-
-    fetchShop();
-  }, []);
+  const fetchImages = async () => {
+    if (!shop) return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/image/supabase/get-images?shop=${shop}`,
+        { credentials: 'include' }
+      );
+      const data = await res.json();
+      setImages(data.images || []);
+    } catch (error) {
+      console.error('❌ Error fetching images:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!shop) return;
 
-    const fetchImages = async () => {
-      try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/image/supabase/get-images?shop=${shop}`
-        );
-        const data = await res.json();
-        setImages(data.images || []);
-      } catch (err) {
-        console.error('❌ Error fetching images:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchImages();
-    const interval = setInterval(fetchImages, 5000);
-    return () => clearInterval(interval);
+
+    const channel = supabase
+      .channel(`realtime:images-${shop}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'images',
+          filter: `shop=eq.${shop}`,
+        },
+        (payload) => {
+          const newRecord = payload.new as ImageRecord;
+          const eventType = payload.eventType;
+
+          if (eventType === 'INSERT') {
+            setImages((prev) => [newRecord, ...prev]);
+          } else if (eventType === 'UPDATE') {
+            setImages((prev) =>
+              prev.map((img) => (img.id === newRecord.id ? newRecord : img))
+            );
+          } else if (eventType === 'DELETE') {
+            const deletedId = (payload.old as ImageRecord).id;
+            setImages((prev) => prev.filter((img) => img.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
   }, [shop]);
 
-  const getBadge = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case 'queued':
+      case 'pending':
         return <Badge tone="info">Queued</Badge>;
       case 'processing':
         return <Badge tone="attention">Processing</Badge>;
       case 'processed':
       case 'completed':
         return <Badge tone="success">Processed</Badge>;
-      case 'error':
       case 'failed':
-        return <Badge tone="critical">Error</Badge>;
+      case 'error':
+        return <Badge tone="critical">Failed</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
   };
 
+  if (shopLoading || loading) {
+    return (
+      <ClientLayout>
+        <Page title="Image Queue">
+          <div className="flex justify-center items-center h-64">
+            <Spinner accessibilityLabel="Loading images" size="large" />
+          </div>
+        </Page>
+      </ClientLayout>
+    );
+  }
+
   return (
     <ClientLayout>
       <Frame>
         <Page title="Image Queue">
-          {loading ? (
-            <div className="flex justify-center items-center p-10">
-              <Spinner accessibilityLabel="Loading images" size="large" />
-            </div>
-          ) : !shop ? (
-            <EmptyState
-              heading="Shop not authenticated"
-              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
-            >
-              <p>Please login again to continue.</p>
-            </EmptyState>
-          ) : images.length === 0 ? (
+          {images.length === 0 ? (
             <EmptyState
               heading="No images in the queue"
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
             >
-              <p>Upload an image to get started.</p>
+              <p>Upload images to start processing.</p>
             </EmptyState>
           ) : (
             <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
               {images.map((img) => (
                 <Box key={img.id} padding="300">
                   <Card>
-                    <Box padding="200">
+                    <BlockStack gap="200">
                       <Text variant="headingSm" as="h3">
-                        {getBadge(img.status)}
+                        {getStatusBadge(img.status)}
                       </Text>
 
-                      <Box paddingBlockStart="200">
-                        <Text as="p" tone="subdued">Original:</Text>
+                      <div className="space-y-2">
+                        <Text as="p" tone="subdued">
+                          Original Image:
+                        </Text>
                         <Thumbnail
                           size="large"
                           source={img.image_url}
                           alt={`Original image ${img.id}`}
                         />
-                      </Box>
+                      </div>
 
-                      {['processed', 'completed'].includes(img.status) && img.processed_url && (
-                        <Box paddingBlockStart="200">
-                          <Text as="p" tone="subdued">Processed:</Text>
-                          <Thumbnail
-                            size="large"
-                            source={img.processed_url}
-                            alt={`Processed image ${img.id}`}
-                          />
-                        </Box>
-                      )}
+                      {['processed', 'completed'].includes(img.status) &&
+                        img.processed_url && (
+                          <div className="space-y-2">
+                            <Text as="p" tone="subdued">
+                              Processed Image:
+                            </Text>
+                            <Thumbnail
+                              size="large"
+                              source={img.processed_url}
+                              alt={`Processed image ${img.id}`}
+                            />
+                          </div>
+                        )}
 
-                      {['processed', 'completed'].includes(img.status) && !img.processed_url && (
-                        <Box paddingBlockStart="200">
+                      {['failed', 'error'].includes(img.status) && (
+                        <Box>
                           <Text tone="critical" as="p">
-                            Processed URL missing
+                            ⚠️ Error: {img.error_message || 'Unknown error'}
                           </Text>
                         </Box>
                       )}
-
-                      {['error', 'failed'].includes(img.status) && (
-                        <Box paddingBlockStart="200">
-                          <Text tone="critical" as="p">
-                            Error: {img.error_message || 'Unknown error'}
-                          </Text>
-                        </Box>
-                      )}
-                    </Box>
+                    </BlockStack>
                   </Card>
                 </Box>
               ))}

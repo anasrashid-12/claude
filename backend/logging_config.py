@@ -1,4 +1,3 @@
-# backend/logging_config.py
 import logging
 
 logging.basicConfig(

@@ -6,3 +6,4 @@ supabase
 celery
 redis
 python-multipart
+httpx

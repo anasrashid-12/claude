@@ -1,53 +1,57 @@
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-export const getImagesByShop = async (shop: string) => {
-  if (!shop) {
-    console.warn('No shop provided to getImagesByShop.');
-    return null;
-  }
+if (!BASE_URL) {
+  throw new Error('❌ Missing NEXT_PUBLIC_BACKEND_URL in environment');
+}
 
+/**
+ * ✅ Fetch images for the authenticated shop
+ */
+export const getImagesByShop = async () => {
   try {
-    const res = await fetch(`${BASE_URL}/image/supabase/get-images?shop=${encodeURIComponent(shop)}`, {
+    const res = await fetch(`${BASE_URL}/image/supabase/get-images`, {
       credentials: 'include',
     });
 
     if (!res.ok) {
-      console.error(`Failed to fetch images. Status: ${res.status}`);
-      return null;
+      console.error(`[getImagesByShop] ❌ Failed: ${res.status}`);
+      return [];
     }
 
-    return await res.json();
+    const data = await res.json();
+    return data?.images || [];
   } catch (error) {
-    console.error('Error fetching images:', error);
-    return null;
+    console.error('[getImagesByShop] ❌ Error:', error);
+    return [];
   }
 };
 
-export const queueImage = async (image_url: string, shop: string) => {
-  if (!image_url || !shop) {
-    console.warn('Missing image_url or shop in queueImage.');
+/**
+ * ✅ Queue image for processing
+ */
+export const queueImage = async (image_url: string) => {
+  if (!image_url) {
+    console.warn('[queueImage] No image URL provided');
     return null;
   }
 
   try {
     const res = await fetch(`${BASE_URL}/image/process`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       credentials: 'include',
-      body: JSON.stringify({ image_url, shop }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url }),
     });
 
     if (!res.ok) {
-      const errMsg = await res.text();
-      console.error(`Image queue failed. Status: ${res.status}. Message: ${errMsg}`);
+      const errorMsg = await res.text();
+      console.error(`[queueImage] ❌ Failed: ${res.status} - ${errorMsg}`);
       return null;
     }
 
     return await res.json();
   } catch (error) {
-    console.error('Error queueing image:', error);
+    console.error('[queueImage] ❌ Error:', error);
     return null;
   }
 };

@@ -1,4 +1,3 @@
-// frontend/components/ProtectedLayout.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,23 +9,20 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const checkSession = async () => {
-      try {
-        const res = await fetch('/api/me');
-        if (res.status === 200) {
-          setLoading(false);
-        } else {
-          router.replace('/login');
-        }
-      } catch (err) {
-        console.error('Session check failed:', err);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+        credentials: 'include',
+      });
+
+      if (res.ok) {
+        setLoading(false);
+      } else {
         router.replace('/login');
       }
     };
-
     checkSession();
   }, [router]);
 
-  if (loading) return <div className="p-6 text-gray-600">Checking session...</div>;
+  if (loading) return <div className="p-6">Checking session...</div>;
 
   return <>{children}</>;
 }

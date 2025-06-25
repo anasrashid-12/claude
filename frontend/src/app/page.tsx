@@ -14,13 +14,13 @@ export default function HomePage() {
 
     const isValid = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shopDomain);
     if (!isValid) {
-      setError('⚠️ Enter a valid Shopify domain like "yourstore" or "yourstore.myshopify.com"');
+      setError('⚠️ Enter a valid Shopify domain like "yourstore" or "yourstore.myshopify.com".');
       return;
     }
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     if (!backendUrl) {
-      setError('Backend URL is not configured');
+      setError('❌ Backend URL is not configured in NEXT_PUBLIC_BACKEND_URL');
       return;
     }
 
@@ -31,7 +31,7 @@ export default function HomePage() {
     <main className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6">
       <h1 className="text-3xl font-bold mb-4">Maxflow Image App</h1>
       <p className="text-gray-600 mb-8 text-center max-w-md">
-        Connect your Shopify store to begin using AI-powered image enhancements.
+        Connect your Shopify store to start using AI-powered image background removal and enhancement.
       </p>
       <div className="flex flex-col items-center gap-4 w-full max-w-sm">
         <input
@@ -42,12 +42,12 @@ export default function HomePage() {
             setError('');
           }}
           placeholder="your-store.myshopify.com"
-          className="border border-gray-300 p-2 rounded w-full"
+          className="border border-gray-300 p-3 rounded w-full focus:outline-none focus:ring-2 focus:ring-black"
         />
         {error && <p className="text-sm text-red-600 text-center">{error}</p>}
         <button
           onClick={handleInstall}
-          className="bg-black text-white px-4 py-2 rounded w-full hover:bg-gray-800"
+          className="bg-black text-white px-4 py-2 rounded w-full hover:bg-gray-800 disabled:opacity-50"
         >
           Install App
         </button>
