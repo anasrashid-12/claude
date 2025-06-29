@@ -1,6 +1,6 @@
 'use client';
 
-import ClientLayout from '../../../../components/ClientLayout';
+import ClientLayout from '../../../components/ClientLayout';
 import useShop from '@/hooks/useShop';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';

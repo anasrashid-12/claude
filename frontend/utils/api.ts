@@ -1,57 +1,50 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 if (!BASE_URL) {
-  throw new Error('❌ Missing NEXT_PUBLIC_BACKEND_URL in environment');
+  throw new Error('❌ NEXT_PUBLIC_BACKEND_URL missing in .env.local');
 }
 
 /**
- * ✅ Fetch images for the authenticated shop
+ * Fetch images from backend filtered by shop
  */
-export const getImagesByShop = async () => {
+export const getImagesByShop = async (shop: string) => {
   try {
     const res = await fetch(`${BASE_URL}/image/supabase/get-images`, {
       credentials: 'include',
     });
 
     if (!res.ok) {
-      console.error(`[getImagesByShop] ❌ Failed: ${res.status}`);
+      console.error('❌ Failed to fetch images');
       return [];
     }
 
-    const data = await res.json();
-    return data?.images || [];
+    const { images = [] } = await res.json();
+    return images.filter((img: any) => img.shop === shop);
   } catch (error) {
-    console.error('[getImagesByShop] ❌ Error:', error);
+    console.error('❌ Error fetching images:', error);
     return [];
   }
 };
 
 /**
- * ✅ Queue image for processing
+ * Queue image for processing
  */
-export const queueImage = async (image_url: string) => {
-  if (!image_url) {
-    console.warn('[queueImage] No image URL provided');
-    return null;
-  }
-
+export const queueImage = async (imageUrl: string) => {
   try {
     const res = await fetch(`${BASE_URL}/image/process`, {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url }),
+      credentials: 'include',
+      body: JSON.stringify({ image_url: imageUrl }),
     });
 
     if (!res.ok) {
-      const errorMsg = await res.text();
-      console.error(`[queueImage] ❌ Failed: ${res.status} - ${errorMsg}`);
+      console.error('❌ Failed to queue image');
       return null;
     }
 
     return await res.json();
   } catch (error) {
-    console.error('[queueImage] ❌ Error:', error);
+    console.error('❌ Error queuing image:', error);
     return null;
   }
 };

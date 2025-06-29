@@ -4,20 +4,23 @@ import { useEffect, useState } from 'react';
 
 export default function useShop() {
   const [shop, setShop] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+        const res = await fetch('/api/me', {
           credentials: 'include',
         });
 
-        if (!res.ok) throw new Error('Unauthenticated');
-        const data = await res.json();
-        setShop(data.shop);
-      } catch {
-        console.warn('[useShop] ❌ Failed to fetch shop session');
+        if (res.ok) {
+          const { shop } = await res.json();
+          setShop(shop);
+        } else {
+          setShop(null);
+        }
+      } catch (error) {
+        console.error('Error fetching shop info:', error);
         setShop(null);
       } finally {
         setLoading(false);

@@ -1,87 +1,52 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Page,
-  Text,
-  TextField,
-  Button,
-  Card,
-  Box,
-  InlineError,
-} from '@shopify/polaris';
-import ClientLayout from '../../../components/ClientLayout';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const handleLogin = () => {
+    let formattedShop = shop.trim();
 
-    const input = shop.trim().toLowerCase();
-    const shopDomain = input.endsWith('.myshopify.com')
-      ? input
-      : `${input}.myshopify.com`;
+    if (!formattedShop.endsWith('.myshopify.com')) {
+      formattedShop = `${formattedShop}.myshopify.com`;
+    }
 
-    const isValid = /^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shopDomain);
-    if (!isValid) {
-      setError(
-        '⚠️ Please enter a valid Shopify domain like "example" or "example.myshopify.com".'
-      );
+    const valid = /^[a-zA-Z0-9-]+\.myshopify\.com$/.test(formattedShop);
+    if (!valid) {
+      alert('❌ Invalid Shopify domain');
       return;
     }
 
-    setLoading(true);
-    try {
-      const installUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${encodeURIComponent(
-        shopDomain
-      )}`;
-      window.location.href = installUrl;
-    } catch (err) {
-      console.error('[Login] Redirect failed:', err);
-      setError('❌ Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!backendUrl) {
+      alert('❌ Backend URL not configured');
+      return;
     }
+
+    router.push(`${backendUrl}/auth/install?shop=${formattedShop}`);
   };
 
   return (
-    <ClientLayout>
-      <Page>
-        <div className="max-w-md mx-auto pt-40">
-          <Card padding="300" roundedAbove="sm">
-            <form onSubmit={handleSubmit}>
-              <Text as="h1" variant="headingLg" alignment="center">
-                Enter Your Shopify Store
-              </Text>
-
-              <Box paddingBlockStart="200">
-                <TextField
-                  label="Shop Domain"
-                  placeholder="example or example.myshopify.com"
-                  value={shop}
-                  onChange={setShop}
-                  autoComplete="off"
-                  error={
-                    error ? (
-                      <InlineError message={error} fieldID="shop" />
-                    ) : undefined
-                  }
-                />
-              </Box>
-
-              <div className="pt-6 flex justify-center">
-                <Button submit variant="primary" loading={loading} disabled={!shop}>
-                  Continue
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      </Page>
-    </ClientLayout>
+    <div className="flex h-screen items-center justify-center bg-gray-50">
+      <div className="p-6 rounded-2xl shadow-xl bg-white w-[400px]">
+        <h1 className="text-2xl font-bold mb-4 text-center">Maxflow Image App</h1>
+        <input
+          type="text"
+          placeholder="Enter your shop domain"
+          className="border border-gray-300 px-4 py-2 rounded-md w-full mb-4 focus:outline-none focus:ring-2 focus:ring-black"
+          value={shop}
+          onChange={(e) => setShop(e.target.value)}
+        />
+        <button
+          className="w-full bg-black text-white rounded-md py-2 hover:bg-gray-800 transition"
+          onClick={handleLogin}
+        >
+          Install App
+        </button>
+      </div>
+    </div>
   );
 }

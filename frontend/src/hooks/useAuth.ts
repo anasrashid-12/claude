@@ -1,33 +1,34 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
-export default function useAuth(redirectTo = '/login') {
-  const [shop, setShop] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+export default function useAuth() {
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkAuth = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+        const res = await fetch('/api/me', {
           credentials: 'include',
         });
 
-        if (!res.ok) throw new Error('Unauthorized');
-        const data = await res.json();
-        setShop(data.shop);
-      } catch {
-        console.warn('[useAuth] ❌ Session invalid, redirecting');
-        router.push(redirectTo);
+        if (res.ok) {
+          const { shop } = await res.json();
+          setAuthenticated(!!shop);
+        } else {
+          setAuthenticated(false);
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        setAuthenticated(false);
       } finally {
         setLoading(false);
       }
     };
 
-    checkSession();
-  }, [router, redirectTo]);
+    checkAuth();
+  }, []);
 
-  return { shop, loading };
+  return { authenticated, loading };
 }

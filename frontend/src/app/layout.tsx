@@ -1,18 +1,21 @@
-import type { Metadata } from 'next';
 import './globals.css';
+import { ReactNode } from 'react';
+import AppBridgeProvider from '../components/AppBridgeProvider';
+import PolarisProvider from '../components/PolarisProvider';
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Maxflow Image App',
-  description: 'Shopify AI Image Processing App for background removal and enhancements',
-  icons: {
-    icon: '/favicon.ico',
-  },
+  description: 'AI Image Processing for Shopify',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-gray-50">{children}</body>
+      <body className="bg-gray-50 text-black">
+        <AppBridgeProvider>
+          <PolarisProvider>{children}</PolarisProvider>
+        </AppBridgeProvider>
+      </body>
     </html>
   );
 }

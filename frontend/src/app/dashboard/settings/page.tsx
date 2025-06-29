@@ -15,7 +15,7 @@ import {
 } from '@shopify/polaris';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
-import ClientLayout from '../../../../components/ClientLayout';
+import ClientLayout from '../../../components/ClientLayout';
 import useShop from '@/hooks/useShop';
 
 const supabase = createClient(
@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [backgroundRemoval, setBackgroundRemoval] = useState(true);
   const [optimizeImages, setOptimizeImages] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toastActive, setToastActive] = useState(false);
 
@@ -40,28 +41,45 @@ export default function SettingsPage() {
       .eq('shop', shop)
       .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      setError(fetchError.message);
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        // No settings yet — use defaults
+        setBackgroundRemoval(true);
+        setOptimizeImages(true);
+      } else {
+        setError(fetchError.message);
+      }
     }
 
     if (data) {
       setBackgroundRemoval(data.background_removal);
       setOptimizeImages(data.optimize_images);
     }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    if (!shop) return;
-    fetchSettings();
+    if (shop) {
+      fetchSettings();
+    }
   }, [shop]);
 
   const handleSave = async () => {
+    if (!shop) {
+      setError('Shop not found. Please reload the page.');
+      return;
+    }
+
+    setSaving(true);
+
     const { error: upsertError } = await supabase.from('settings').upsert({
       shop,
       background_removal: backgroundRemoval,
       optimize_images: optimizeImages,
     });
+
+    setSaving(false);
 
     if (upsertError) {
       setError(upsertError.message);
@@ -74,7 +92,7 @@ export default function SettingsPage() {
     <ClientLayout>
       <Frame>
         <Page title="Settings">
-          {loading ? (
+          {loading || shopLoading ? (
             <div className="flex justify-center items-center h-64">
               <Spinner accessibilityLabel="Loading settings" size="large" />
             </div>
@@ -99,7 +117,11 @@ export default function SettingsPage() {
                 </BlockStack>
 
                 <InlineStack align="end">
-                  <Button variant="primary" onClick={handleSave}>
+                  <Button
+                    variant="primary"
+                    onClick={handleSave}
+                    loading={saving}
+                  >
                     Save Settings
                   </Button>
                 </InlineStack>
@@ -108,13 +130,13 @@ export default function SettingsPage() {
           )}
 
           {error && (
-            <Banner title="Error" tone="critical">
+            <Banner title="Error" tone="critical" onDismiss={() => setError(null)}>
               <p>{error}</p>
             </Banner>
           )}
 
           {toastActive && (
-            <Toast content="Settings saved" onDismiss={() => setToastActive(false)} />
+            <Toast content="Settings saved successfully" onDismiss={() => setToastActive(false)} />
           )}
         </Page>
       </Frame>

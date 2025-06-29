@@ -1,34 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import jwt from 'jsonwebtoken';
 
-export async function GET(req: NextRequest) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+const JWT_SECRET = process.env.JWT_SECRET!;
+if (!JWT_SECRET) throw new Error('❌ Missing JWT_SECRET in environment variables.');
 
-  if (!backendUrl) {
-    return NextResponse.json(
-      { error: 'Backend URL not configured' },
-      { status: 500 }
-    );
+export async function GET(req: Request) {
+  const authHeader = req.headers.get('Authorization');
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const token = authHeader.replace('Bearer ', '');
+
   try {
-    const backendRes = await fetch(`${backendUrl}/me`, {
-      method: 'GET',
-      headers: {
-        Cookie: req.headers.get('cookie') || '',
-      },
-      credentials: 'include',
-    });
+    const decoded = jwt.verify(token, JWT_SECRET) as { shop: string };
 
-    const data = await backendRes.json();
+    if (!decoded?.shop) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
 
-    return NextResponse.json(data, {
-      status: backendRes.status,
-    });
+    return NextResponse.json({ shop: decoded.shop, status: 'authenticated' });
   } catch (error) {
-    console.error('[API /me] Error:', error);
-    return NextResponse.json(
-      { error: 'Session check failed' },
-      { status: 500 }
-    );
+    console.error('JWT verification error:', error);
+    return NextResponse.json({ error: 'Invalid session token' }, { status: 401 });
   }
 }

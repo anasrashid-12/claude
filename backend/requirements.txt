@@ -1,9 +1,11 @@
 fastapi
-uvicorn[standard]
-requests
-python-dotenv
+uvicorn
 supabase
-celery
-redis
-python-multipart
 httpx
+python-jose
+requests
+python-multipart
+celery
+pillow
+redis
+python-dotenv
