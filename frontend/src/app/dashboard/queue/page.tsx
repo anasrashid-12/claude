@@ -1,6 +1,6 @@
 'use client';
 
-import ClientLayout from '../../../components/ClientLayout';
+import ClientLayout from '@/components/ClientLayout';
 import useShop from '@/hooks/useShop';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
@@ -112,7 +112,7 @@ export default function QueuePage() {
   if (shopLoading || loading) {
     return (
       <ClientLayout>
-        <Page title="Image Queue">
+        <Page title="📋 Image Queue">
           <div className="flex justify-center items-center h-64">
             <Spinner accessibilityLabel="Loading images" size="large" />
           </div>
@@ -124,13 +124,13 @@ export default function QueuePage() {
   return (
     <ClientLayout>
       <Frame>
-        <Page title="Image Queue">
+        <Page title="📋 Image Queue">
           {images.length === 0 ? (
             <EmptyState
               heading="No images in the queue"
               image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/empty-state.svg"
             >
-              <p>Upload images to start processing.</p>
+              <p>Upload images to start processing them with AI.</p>
             </EmptyState>
           ) : (
             <Grid columns={{ xs: 1, sm: 2, md: 3 }}>
@@ -142,38 +142,38 @@ export default function QueuePage() {
                         {getStatusBadge(img.status)}
                       </Text>
 
-                      <div className="space-y-2">
-                        <Text as="p" tone="subdued">
-                          Original Image:
-                        </Text>
-                        <Thumbnail
-                          size="large"
-                          source={img.image_url}
-                          alt={`Original image ${img.id}`}
-                        />
-                      </div>
+                      <BlockStack gap="100">
+                        <div>
+                          <Text as="p" tone="subdued">
+                            Original Image:
+                          </Text>
+                          <Thumbnail
+                            size="large"
+                            source={img.image_url}
+                            alt={`Original image ${img.id}`}
+                          />
+                        </div>
 
-                      {['processed', 'completed'].includes(img.status) &&
-                        img.processed_url && (
-                          <div className="space-y-2">
-                            <Text as="p" tone="subdued">
-                              Processed Image:
-                            </Text>
-                            <Thumbnail
-                              size="large"
-                              source={img.processed_url}
-                              alt={`Processed image ${img.id}`}
-                            />
-                          </div>
-                        )}
+                        {['processed', 'completed'].includes(img.status) &&
+                          img.processed_url && (
+                            <div>
+                              <Text as="p" tone="subdued">
+                                Processed Image:
+                              </Text>
+                              <Thumbnail
+                                size="large"
+                                source={img.processed_url}
+                                alt={`Processed image ${img.id}`}
+                              />
+                            </div>
+                          )}
 
-                      {['failed', 'error'].includes(img.status) && (
-                        <Box>
+                        {['failed', 'error'].includes(img.status) && (
                           <Text tone="critical" as="p">
                             ⚠️ Error: {img.error_message || 'Unknown error'}
                           </Text>
-                        </Box>
-                      )}
+                        )}
+                      </BlockStack>
                     </BlockStack>
                   </Card>
                 </Box>

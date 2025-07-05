@@ -24,27 +24,39 @@ export default function GalleryPage() {
   const [loading, setLoading] = useState(true);
 
   const fetchImages = async () => {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/image/supabase/get-images?shop=${shop}`,
-      { credentials: 'include' }
-    );
-    const data = await res.json();
-    setImages(data.images || []);
-    setLoading(false);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/image/supabase/get-images?shop=${shop}`,
+        { credentials: 'include' }
+      );
+      const data = await res.json();
+      setImages(data.images || []);
+    } catch (err) {
+      console.error('Error fetching gallery images:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (!shop) return;
+
     fetchImages();
 
     const channel = supabase
       .channel(`realtime:gallery-${shop}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'images', filter: `shop=eq.${shop}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'images',
+          filter: `shop=eq.${shop}`,
+        },
         (payload) => {
           const newRecord = payload.new as ImageItem;
           const eventType = payload.eventType;
+
           if (eventType === 'INSERT') {
             setImages((prev) => [newRecord, ...prev]);
           } else if (eventType === 'UPDATE') {
@@ -65,42 +77,59 @@ export default function GalleryPage() {
   }, [shop]);
 
   if (shopLoading || loading) {
-    return <p className="text-center mt-10">Loading...</p>;
+    return <p className="text-center mt-10 text-gray-500">Loading gallery...</p>;
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">🖼️ Processed Gallery</h1>
 
       {images.length === 0 ? (
-        <p className="text-center text-gray-500">No images found.</p>
+        <p className="text-center text-gray-500">No processed images found yet.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {images.map((img) => (
-            <div key={img.id} className="border rounded-xl p-3 shadow bg-white">
+            <div
+              key={img.id}
+              className="rounded-xl border border-gray-200 bg-white p-3 shadow hover:shadow-md transition-shadow"
+            >
               <div className="relative w-full h-48 rounded overflow-hidden">
                 <Image
                   src={img.processed_url || img.image_url}
                   alt={`Image ${img.id}`}
                   fill
                   className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 33vw"
                 />
               </div>
-              <div className="mt-3 text-sm">
-                <p>
+
+              <div className="mt-3 text-sm space-y-1">
+                <p className="text-gray-600">
                   Status:{' '}
                   {img.status === 'processed' ? (
-                    <span className="text-green-600">✅ Done</span>
-                  ) : img.status === 'processing' || img.status === 'queued' ? (
-                    <span className="text-yellow-600">🕒 Processing</span>
-                  ) : img.status === 'error' || img.status === 'failed' ? (
-                    <span className="text-red-600">❌ Failed</span>
+                    <span className="text-green-600 font-medium">✅ Done</span>
+                  ) : ['queued', 'processing'].includes(img.status) ? (
+                    <span className="text-yellow-600 font-medium">🕒 Processing</span>
+                  ) : ['error', 'failed'].includes(img.status) ? (
+                    <span className="text-red-600 font-medium">❌ Failed</span>
                   ) : (
-                    <span className="text-gray-600">{img.status}</span>
+                    <span className="text-gray-600 font-medium">{img.status}</span>
                   )}
                 </p>
+
                 {img.error_message && (
-                  <p className="text-xs text-red-500 mt-1">{img.error_message}</p>
+                  <p className="text-xs text-red-500">⚠️ {img.error_message}</p>
+                )}
+
+                {img.processed_url && (
+                  <a
+                    href={img.processed_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    🔍 View Full Image
+                  </a>
                 )}
               </div>
             </div>

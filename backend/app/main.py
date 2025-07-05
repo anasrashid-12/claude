@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,11 +10,14 @@ from app.routers.webhooks_router import webhook_router
 from app.routers.fileserve_router import fileserve_router
 
 from app.middleware.rate_limiter import RateLimitMiddleware
+from app.middleware.csp_middleware import CSPMiddleware
+
 from app.logging_config import logger
 
 import os
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
+
 
 def create_app():
     app = FastAPI()
@@ -32,10 +35,23 @@ def create_app():
         allow_headers=["*"],
     )
 
-    # ✅ Middlewares
+    # ✅ Add CSP Middleware
+    app.add_middleware(CSPMiddleware)
+
+    # ✅ Rate Limit Middleware
     app.add_middleware(RateLimitMiddleware)
 
-    # ✅ Routers
+    # ✅ Security Headers Middleware (for iframe + cookie support)
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = FRONTEND_URL or "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["X-Frame-Options"] = "ALLOWALL"
+        response.headers["P3P"] = 'CP="Not used"'
+        return response
+
+    # ✅ Include Routers
     app.include_router(auth_router)
     app.include_router(upload_router)
     app.include_router(image_router)

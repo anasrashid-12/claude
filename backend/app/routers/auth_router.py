@@ -17,6 +17,9 @@ BACKEND_URL = os.getenv("BACKEND_URL")
 SCOPES = os.getenv("SHOPIFY_SCOPES", "read_products,write_products")
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 
+if not all([SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FRONTEND_URL, BACKEND_URL]):
+    raise RuntimeError("❌ Missing one or more required environment variables.")
+
 REDIRECT_URI = f"{BACKEND_URL}/auth/callback"
 
 # 🔗 Supabase Client
@@ -50,7 +53,8 @@ async def register_uninstall_webhook(shop: str, access_token: str):
         }
     }
     async with httpx.AsyncClient() as client:
-        await client.post(url, headers=headers, json=payload)
+        res = await client.post(url, headers=headers, json=payload)
+        print("🔔 Uninstall webhook registered:", res.status_code, res.text)
 
 
 # ✅ OAuth Install Route
@@ -63,10 +67,12 @@ async def install(request: Request, shop: str = None, host: str = None):
         "client_id": SHOPIFY_API_KEY,
         "scope": SCOPES,
         "redirect_uri": REDIRECT_URI,
-        "state": host,  # host is passed in state
+        "state": host,  # pass host to callback
     })
 
-    return RedirectResponse(f"https://{shop}/admin/oauth/authorize?{query}")
+    install_url = f"https://{shop}/admin/oauth/authorize?{query}"
+    print("🛠️ Install redirect to:", install_url)
+    return RedirectResponse(install_url)
 
 
 # ✅ OAuth Callback Route
@@ -74,7 +80,12 @@ async def install(request: Request, shop: str = None, host: str = None):
 async def auth_callback(request: Request):
     shop = request.query_params.get("shop")
     code = request.query_params.get("code")
-    host = request.query_params.get("state")  # Retrieve host from state
+    host = request.query_params.get("state")
+
+    print("🔁 Callback received")
+    print("🔧 shop:", shop)
+    print("🔧 code:", code)
+    print("🔧 host:", host)
 
     if not shop or not code or not host:
         raise HTTPException(status_code=400, detail="Missing shop, code, or host")
@@ -89,6 +100,7 @@ async def auth_callback(request: Request):
 
     async with httpx.AsyncClient() as client:
         res = await client.post(token_url, json=payload)
+        print("🔑 Token response:", res.status_code, res.text)
         res.raise_for_status()
         access_token = res.json().get("access_token")
 
@@ -96,6 +108,7 @@ async def auth_callback(request: Request):
         raise HTTPException(status_code=500, detail="Access token not received")
 
     # 📥 Save to Supabase
+    print("💾 Saving shop to Supabase:", shop)
     supabase.table("shops").upsert(
         {
             "shop": shop,
@@ -110,8 +123,11 @@ async def auth_callback(request: Request):
     # 🔐 Create session JWT
     token = create_jwt(shop)
 
-    # 🍪 Set cookies
-    response = RedirectResponse(url=f"{FRONTEND_URL}/dashboard?host={host}")
+    # 🍪 Set cookies and redirect
+    dashboard_url = f"{FRONTEND_URL}/dashboard?shop={shop}&host={host}"
+    print("🚀 Redirecting to frontend:", dashboard_url)
+
+    response = RedirectResponse(url=dashboard_url)
     response.set_cookie(
         key="session",
         value=token,
@@ -124,7 +140,7 @@ async def auth_callback(request: Request):
     response.set_cookie(
         key="host",
         value=host,
-        httponly=False,  # Frontend reads this
+        httponly=False,
         secure=True,
         samesite="None",
         max_age=86400,

@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
-  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleLogin = () => {
     let formattedShop = shop.trim();
-
     if (!formattedShop.endsWith('.myshopify.com')) {
       formattedShop = `${formattedShop}.myshopify.com`;
     }
@@ -26,7 +25,21 @@ export default function LoginPage() {
       return;
     }
 
-    router.push(`${backendUrl}/auth/install?shop=${formattedShop}`);
+    const host = searchParams.get('host');
+    if (!host) {
+      alert('❌ Missing host parameter. Please open from Shopify Admin.');
+      return;
+    }
+
+    // Break out of iframe and redirect top-level
+    const redirectUrl = `${backendUrl}/auth/install?shop=${formattedShop}&host=${host}`;
+    if (window.top === window.self) {
+      // Not in iframe
+      window.location.href = redirectUrl;
+    } else {
+      // Inside iframe → break out
+      window.top!.location.href = redirectUrl;
+    }
   };
 
   return (

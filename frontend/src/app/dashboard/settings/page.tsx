@@ -15,7 +15,7 @@ import {
 } from '@shopify/polaris';
 import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
-import ClientLayout from '../../../components/ClientLayout';
+import ClientLayout from '@/components/ClientLayout';
 import useShop from '@/hooks/useShop';
 
 const supabase = createClient(
@@ -25,6 +25,7 @@ const supabase = createClient(
 
 export default function SettingsPage() {
   const { shop, loading: shopLoading } = useShop();
+
   const [backgroundRemoval, setBackgroundRemoval] = useState(true);
   const [optimizeImages, setOptimizeImages] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -43,26 +44,21 @@ export default function SettingsPage() {
 
     if (fetchError) {
       if (fetchError.code === 'PGRST116') {
-        // No settings yet — use defaults
         setBackgroundRemoval(true);
         setOptimizeImages(true);
       } else {
         setError(fetchError.message);
       }
-    }
-
-    if (data) {
-      setBackgroundRemoval(data.background_removal);
-      setOptimizeImages(data.optimize_images);
+    } else if (data) {
+      setBackgroundRemoval(data.background_removal ?? true);
+      setOptimizeImages(data.optimize_images ?? true);
     }
 
     setLoading(false);
   };
 
   useEffect(() => {
-    if (shop) {
-      fetchSettings();
-    }
+    if (shop) fetchSettings();
   }, [shop]);
 
   const handleSave = async () => {
@@ -91,52 +87,63 @@ export default function SettingsPage() {
   return (
     <ClientLayout>
       <Frame>
-        <Page title="Settings">
+        <Page title="⚙️ App Settings">
           {loading || shopLoading ? (
             <div className="flex justify-center items-center h-64">
               <Spinner accessibilityLabel="Loading settings" size="large" />
             </div>
           ) : (
-            <Card>
-              <BlockStack gap="400">
-                <Text as="h2" variant="headingMd">
-                  Preferences
-                </Text>
+            <div className="max-w-2xl mx-auto px-4">
+              <Card padding="400">
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">
+                    Preferences
+                  </Text>
 
-                <BlockStack gap="200">
-                  <Checkbox
-                    label="Remove background from images"
-                    checked={backgroundRemoval}
-                    onChange={() => setBackgroundRemoval(!backgroundRemoval)}
-                  />
-                  <Checkbox
-                    label="Optimize images for web"
-                    checked={optimizeImages}
-                    onChange={() => setOptimizeImages(!optimizeImages)}
-                  />
+                  <BlockStack gap="200">
+                    <Checkbox
+                      label="Remove background from images"
+                      checked={backgroundRemoval}
+                      onChange={() => setBackgroundRemoval(!backgroundRemoval)}
+                    />
+                    <Checkbox
+                      label="Optimize images for web"
+                      checked={optimizeImages}
+                      onChange={() => setOptimizeImages(!optimizeImages)}
+                    />
+                  </BlockStack>
+
+                  <InlineStack align="end">
+                    <Button
+                      variant="primary"
+                      onClick={handleSave}
+                      loading={saving}
+                    >
+                      Save Settings
+                    </Button>
+                  </InlineStack>
                 </BlockStack>
-
-                <InlineStack align="end">
-                  <Button
-                    variant="primary"
-                    onClick={handleSave}
-                    loading={saving}
-                  >
-                    Save Settings
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </Card>
+              </Card>
+            </div>
           )}
 
           {error && (
-            <Banner title="Error" tone="critical" onDismiss={() => setError(null)}>
-              <p>{error}</p>
-            </Banner>
+            <div className="max-w-2xl mx-auto mt-4 px-4">
+              <Banner
+                title="Something went wrong"
+                tone="critical"
+                onDismiss={() => setError(null)}
+              >
+                <p>{error}</p>
+              </Banner>
+            </div>
           )}
 
           {toastActive && (
-            <Toast content="Settings saved successfully" onDismiss={() => setToastActive(false)} />
+            <Toast
+              content="✅ Settings saved successfully"
+              onDismiss={() => setToastActive(false)}
+            />
           )}
         </Page>
       </Frame>

@@ -3,7 +3,7 @@ import DashboardClient from './dashboard-client';
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div className="p-6 text-gray-500">Loading dashboard...</div>}>
       <DashboardClient />
     </Suspense>
   );

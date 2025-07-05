@@ -1,14 +1,12 @@
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 if (!BASE_URL) {
   throw new Error('❌ NEXT_PUBLIC_BACKEND_URL missing in .env.local');
 }
 
-/**
- * Fetch images from backend filtered by shop
- */
 export const getImagesByShop = async (shop: string) => {
   try {
-    const res = await fetch(`${BASE_URL}/image/supabase/get-images`, {
+    const res = await fetch(`${BASE_URL}/image/images`, {
       credentials: 'include',
     });
 
@@ -18,16 +16,13 @@ export const getImagesByShop = async (shop: string) => {
     }
 
     const { images = [] } = await res.json();
-    return images.filter((img: any) => img.shop === shop);
+    return images;
   } catch (error) {
     console.error('❌ Error fetching images:', error);
     return [];
   }
 };
 
-/**
- * Queue image for processing
- */
 export const queueImage = async (imageUrl: string) => {
   try {
     const res = await fetch(`${BASE_URL}/image/process`, {

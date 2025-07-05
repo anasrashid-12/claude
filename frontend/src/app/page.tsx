@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
+    const shop = searchParams.get('shop');
+    const host = searchParams.get('host');
+
     const checkAuth = async () => {
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
@@ -14,18 +18,23 @@ export default function Home() {
         });
 
         if (res.ok) {
-          router.push('/dashboard');
+          router.replace('/dashboard');
         } else {
-          router.push('/login');
+          // Pass shop & host to login so cookies can be set
+          if (shop && host) {
+            router.replace(`/login?shop=${shop}&host=${host}`);
+          } else {
+            router.replace('/login');
+          }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
-        router.push('/login');
+        router.replace('/login');
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, searchParams]);
 
   return (
     <div className="flex items-center justify-center h-screen">

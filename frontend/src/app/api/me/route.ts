@@ -1,22 +1,27 @@
-import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { NextRequest, NextResponse } from 'next/server';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-if (!JWT_SECRET) throw new Error('❌ Missing JWT_SECRET in environment variables.');
+function getEnvVar(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`❌ Missing environment variable: ${key}`);
+  }
+  return value;
+}
 
-export async function GET(req: Request) {
-  const authHeader = req.headers.get('Authorization');
+export async function GET(req: NextRequest) {
+  const JWT_SECRET = getEnvVar('JWT_SECRET');
 
-  if (!authHeader?.startsWith('Bearer ')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const token = req.cookies.get('session')?.value;
+
+  if (!token) {
+    return NextResponse.json({ error: 'Unauthorized: No session token' }, { status: 401 });
   }
 
-  const token = authHeader.replace('Bearer ', '');
-
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { shop: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-    if (!decoded?.shop) {
+    if (typeof decoded !== 'object' || !decoded?.shop) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 

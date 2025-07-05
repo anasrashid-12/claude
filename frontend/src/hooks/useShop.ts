@@ -9,9 +9,9 @@ export default function useShop() {
   useEffect(() => {
     const fetchShop = async () => {
       try {
-        const res = await fetch('/api/me', {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
           credentials: 'include',
-        });
+        });        
 
         if (res.ok) {
           const { shop } = await res.json();

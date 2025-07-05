@@ -4,50 +4,37 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
   const host = url.searchParams.get('host');
-  const session = url.searchParams.get('session');
   const shop = url.searchParams.get('shop');
+  const session = url.searchParams.get('session');
 
   const response = NextResponse.next();
 
+  const cookieOptions = {
+    secure: true,
+    sameSite: 'none' as const,
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7,
+  };
+
   if (host) {
-    response.cookies.set('host', host, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-    });
+    response.cookies.set('host', host, cookieOptions);
+    console.log('🍪 Set host cookie:', host);
+  }
+
+  if (shop) {
+    response.cookies.set('shop', shop, cookieOptions);
+    console.log('🍪 Set shop cookie:', shop);
   }
 
   if (session) {
     response.cookies.set('session', session, {
+      ...cookieOptions,
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
     });
+    console.log('🍪 Set session cookie');
   }
 
-  if (shop) {
-    response.cookies.set('shop', shop, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-    });
-  }
-
-  // Remove these params from URL after setting cookies
-  if (host || session || shop) {
-    url.searchParams.delete('host');
-    url.searchParams.delete('session');
-    url.searchParams.delete('shop');
-
-    return NextResponse.redirect(url, {
-      status: 302,
-      headers: response.headers,
-    });
-  }
-
+  // 👉 SKIP removing query params for debugging
   return response;
 }
 
