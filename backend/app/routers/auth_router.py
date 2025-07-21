@@ -15,7 +15,7 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 BACKEND_URL = os.getenv("BACKEND_URL")
 SCOPES = os.getenv("SHOPIFY_SCOPES", "read_products,write_products")
-JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
+JWT_SECRET = os.getenv("JWT_SECRET")
 
 if not all([SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FRONTEND_URL, BACKEND_URL]):
     raise RuntimeError("❌ Missing one or more required environment variables.")
@@ -124,7 +124,7 @@ async def auth_callback(request: Request):
     token = create_jwt(shop)
 
     # 🍪 Set cookies and redirect
-    dashboard_url = f"{FRONTEND_URL}/dashboard?shop={shop}&host={host}"
+    dashboard_url = f"{FRONTEND_URL}/dashboard?shop={shop}&host={host}&token={token}"
     print("🚀 Redirecting to frontend:", dashboard_url)
 
     response = RedirectResponse(url=dashboard_url)

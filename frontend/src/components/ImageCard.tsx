@@ -4,70 +4,43 @@ import Image from 'next/image';
 import { ImageData } from './ImageGallery';
 
 export default function ImageCard({ image }: { image: ImageData }) {
-  const canDownload = image.status === 'processed' && image.processed_url;
+  const canDownload = image.status === 'processed' && !!image.processed_url;
+
+  const getStatusBadge = () => {
+    const base = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold';
+    if (image.status === 'processed') return <span className={`${base} text-green-700 bg-green-100`}>✅ Done</span>;
+    if (['processing', 'queued'].includes(image.status)) return <span className={`${base} text-yellow-700 bg-yellow-100`}>⏳ Processing</span>;
+    if (['error', 'failed'].includes(image.status)) return <span className={`${base} text-red-700 bg-red-100`}>❌ Failed</span>;
+    return <span className={`${base} text-gray-600 bg-gray-100`}>{image.status}</span>;
+  };
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-lg transition-shadow duration-200 p-4 space-y-4 group">
-      {/* Image Preview */}
-      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-gray-100">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow p-4 space-y-3 group">
+      <div className="relative w-full h-40 sm:h-48 md:h-56 rounded-lg overflow-hidden bg-gray-100">
         <Image
           src={image.processed_url || image.image_url}
-          alt={`Image ${image.id}`}
+          alt={`Image (${image.status})`}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="object-cover group-hover:scale-105 transition-transform"
         />
       </div>
 
-      {/* Status + Actions */}
-      <div className="text-sm space-y-2">
-        {/* Status Badge */}
-        <p className="text-gray-500">
-          Status:{' '}
-          {image.status === 'processed' ? (
-            <span className="text-green-600 font-semibold bg-green-50 px-2 py-0.5 rounded-md">
-              ✅ Done
-            </span>
-          ) : ['processing', 'queued'].includes(image.status) ? (
-            <span className="text-yellow-600 font-semibold bg-yellow-50 px-2 py-0.5 rounded-md">
-              🕒 Processing
-            </span>
-          ) : ['error', 'failed'].includes(image.status) ? (
-            <span className="text-red-600 font-semibold bg-red-50 px-2 py-0.5 rounded-md">
-              ❌ Failed
-            </span>
-          ) : (
-            <span className="text-gray-600 font-medium">{image.status}</span>
-          )}
-        </p>
+      <div className="text-xs sm:text-sm space-y-2">
+        <p className="text-gray-600">Status: {getStatusBadge()}</p>
 
-        {/* Actions */}
         {canDownload && (
-          <div className="flex gap-4 items-center mt-2">
-            <a
-              href={image.processed_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline font-medium"
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={image.processed_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">
               🔍 View
             </a>
-            <a
-              href={image.processed_url}
-              download
-              className="text-xs bg-gray-100 border border-gray-300 rounded-md px-3 py-1 text-gray-700 hover:bg-gray-200 transition"
-            >
+            <a href={image.processed_url} download className="text-xs bg-gray-100 border border-gray-300 rounded-md px-2 py-1 text-gray-700 hover:bg-gray-200">
               ⬇️ Download
             </a>
           </div>
         )}
 
-        {/* Error */}
-        {image.error_message && (
-          <p className="text-xs text-red-500 mt-1">
-            ⚠️ {image.error_message}
-          </p>
-        )}
+        {image.error_message && <p className="text-xs text-red-500">⚠️ {image.error_message}</p>}
       </div>
     </div>
   );

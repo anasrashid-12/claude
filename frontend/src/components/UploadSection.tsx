@@ -3,6 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import useShop from '@/hooks/useShop';
+import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+
+const OPTIONS = [
+  { label: 'Remove Background', value: 'remove-background' },
+  { label: 'Upscale', value: 'upscale' },
+  { label: 'Downscale', value: 'downscale' },
+];
+
+const MAX_FILE_SIZE_MB = 5;
 
 export default function UploadSection() {
   const { shop, loading: shopLoading } = useShop();
@@ -10,43 +20,57 @@ export default function UploadSection() {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [messages, setMessages] = useState<string[]>([]);
+  const [selectedOption, setSelectedOption] = useState(OPTIONS[0].value);
 
-  // Previews
   useEffect(() => {
     const urls = files.map((file) => URL.createObjectURL(file));
     setPreviews(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [files]);
 
-  // File input change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
+    const selected = Array.from(e.target.files || []).filter((file) => {
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        toast.error(`❌ ${file.name} exceeds ${MAX_FILE_SIZE_MB}MB limit`);
+        return false;
+      }
+      return true;
+    });
     setFiles((prev) => [...prev, ...selected]);
-    setMessages([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Drag & drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    const dropped = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    const dropped = Array.from(e.dataTransfer.files).filter((file) => {
+      if (!file.type.startsWith('image/')) return false;
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        toast.error(`❌ ${file.name} exceeds ${MAX_FILE_SIZE_MB}MB limit`);
+        return false;
+      }
+      return true;
+    });
     setFiles((prev) => [...prev, ...dropped]);
-    setMessages([]);
   };
 
-  // Upload
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const clearAll = () => {
+    setFiles([]);
+  };
+
   const handleUpload = async () => {
     if (!files.length || !shop) return;
     setUploading(true);
-    const newMessages: string[] = [];
+    let successCount = 0;
 
     for (const file of files) {
       try {
         const formData = new FormData();
         formData.append('image', file);
+        formData.append('operation', selectedOption);
 
         const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
           method: 'POST',
@@ -54,44 +78,64 @@ export default function UploadSection() {
           body: formData,
         });
 
-        if (!uploadRes.ok) throw new Error('Upload failed');
-        const uploadData = await uploadRes.json();
-        const imageUrl = uploadData.url;
+        if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
+        const { filename } = await uploadRes.json();
 
-        const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/process`, {
+        const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/process`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_url: imageUrl }),
+          body: JSON.stringify({ filename, operation: selectedOption }),
         });
 
-        if (!processRes.ok) throw new Error('Queue failed');
-        newMessages.push(`✅ ${file.name} uploaded & queued`);
-      } catch (error) {
-        console.error(error);
-        newMessages.push(`❌ ${file.name} failed`);
+        if (!processRes.ok) throw new Error(`Processing failed (${processRes.status})`);
+
+        toast.success(`✅ ${file.name} uploaded & processing started`);
+        successCount += 1;
+      } catch (err) {
+        console.error(err);
+        toast.error(`❌ ${file.name} failed`);
       }
     }
 
-    setMessages(newMessages);
     setUploading(false);
-    setFiles([]);
-    setPreviews([]);
+    clearAll();
+
+    if (successCount > 0) {
+      toast.success(`🎉 Successfully uploaded ${successCount} image${successCount > 1 ? 's' : ''}`);
+    }
   };
 
-  if (shopLoading) return <p className="text-gray-500 mt-10">Loading shop...</p>;
+  if (shopLoading) return <p className="text-gray-500 dark:text-gray-400">Loading shop...</p>;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow space-y-6 border border-gray-100">
-      {/* Header */}
-      <h2 className="text-xl font-semibold text-gray-800">📤 Upload Images</h2>
+    <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow border border-gray-100 dark:border-gray-800 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">📤 Upload Images</h2>
+        {files.length > 0 && (
+          <button onClick={clearAll} className="text-sm text-red-500 hover:underline">
+            Clear All
+          </button>
+        )}
+      </div>
 
-      {/* Dropzone */}
+      <select
+        value={selectedOption}
+        onChange={(e) => setSelectedOption(e.target.value)}
+        className="w-full border rounded-md p-2 text-sm dark:bg-gray-800 dark:border-gray-600"
+      >
+        {OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
       <div
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => fileInputRef.current?.click()}
-        className="w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition"
+        className="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 sm:p-6 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition"
       >
         <input
           type="file"
@@ -101,24 +145,33 @@ export default function UploadSection() {
           onChange={handleFileChange}
           className="hidden"
         />
-        <p className="text-sm text-gray-500">Click or drag & drop image(s) here</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Click or drag & drop image(s) here (Max {MAX_FILE_SIZE_MB}MB each)
+        </p>
       </div>
 
-      {/* Previews */}
       {previews.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {previews.map((src, idx) => (
-            <div
-              key={idx}
-              className="relative w-full h-40 rounded-lg overflow-hidden bg-gray-100 shadow-sm"
-            >
+            <div key={idx} className="relative w-full aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-sm group">
               <Image src={src} alt={`Preview ${idx}`} fill className="object-cover" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFile(idx);
+                }}
+                className="absolute top-1 right-1 bg-white dark:bg-gray-900 bg-opacity-80 rounded-full p-1 shadow hover:bg-red-100"
+              >
+                <Trash2 size={16} className="text-red-600" />
+              </button>
+              <div className="absolute bottom-0 left-0 w-full bg-black/50 text-white text-xs px-2 py-1 truncate">
+                {files[idx]?.name}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Upload button */}
       <button
         onClick={handleUpload}
         disabled={!files.length || uploading}
@@ -126,17 +179,6 @@ export default function UploadSection() {
       >
         {uploading ? 'Uploading...' : `Upload ${files.length} Image${files.length > 1 ? 's' : ''}`}
       </button>
-
-      {/* Messages */}
-      {messages.length > 0 && (
-        <div className="space-y-1 text-sm">
-          {messages.map((msg, idx) => (
-            <p key={idx} className={msg.startsWith('✅') ? 'text-green-600' : 'text-red-600'}>
-              {msg}
-            </p>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

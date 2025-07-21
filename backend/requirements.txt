@@ -1,11 +1,13 @@
 fastapi
-uvicorn
+uvicorn[standard]
 supabase
 httpx
 python-jose
 requests
 python-multipart
-celery
+celery[redis]
 pillow
 redis
 python-dotenv
+prometheus-fastapi-instrumentator
+sentry-sdk

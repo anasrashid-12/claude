@@ -14,5 +14,4 @@ celery_app.conf.task_routes = {
 
 logger.info("✅ Celery app initialized.")
 
-# 🔥 Import tasks after celery_app is defined
 import app.tasks.image_tasks

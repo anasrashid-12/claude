@@ -4,18 +4,37 @@ import { useEffect, useState } from 'react';
 
 export default function useShop() {
   const [shop, setShop] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // ✅ Save token from URL to localStorage if available
+    const url = new URL(window.location.href);
+    const urlToken = url.searchParams.get('token');
+    if (urlToken) {
+      localStorage.setItem('session', urlToken);
+      const cleanUrl = `${url.origin}${url.pathname}`;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+
     const fetchShop = async () => {
+      const jwt = localStorage.getItem('session');
+      if (!jwt) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
-          credentials: 'include',
-        });        
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+          },
+        });
 
         if (res.ok) {
-          const { shop } = await res.json();
-          setShop(shop);
+          const data = await res.json();
+          setShop(data.shop);
+          setToken(jwt);
         } else {
           setShop(null);
         }
@@ -30,5 +49,5 @@ export default function useShop() {
     fetchShop();
   }, []);
 
-  return { shop, loading };
+  return { shop, token, loading };
 }

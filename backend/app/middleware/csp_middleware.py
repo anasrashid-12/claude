@@ -6,8 +6,9 @@ import os
 class CSPMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response: Response = await call_next(request)
-        backend_url = os.getenv("BACKEND_URL", "")
-        frontend_url = os.getenv("FRONTEND_URL", "")
+
+        backend_url = os.getenv("BACKEND_URL", "").rstrip("/")
+        frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
 
         csp_policy = (
             "default-src 'self'; "
@@ -18,7 +19,7 @@ class CSPMiddleware(BaseHTTPMiddleware):
             f"connect-src 'self' {frontend_url} {backend_url} https: wss: data: blob:; "
             "frame-ancestors https://admin.shopify.com https://*.myshopify.com; "
             "frame-src https://admin.shopify.com https://*.myshopify.com; "
-            "media-src 'self' blob: data:"
+            "media-src 'self' blob: data:;"
         )
 
         response.headers["Content-Security-Policy"] = csp_policy

@@ -20,15 +20,14 @@ export default function Home() {
         if (res.ok) {
           router.replace('/dashboard');
         } else {
-          // Pass shop & host to login so cookies can be set
-          if (shop && host) {
-            router.replace(`/login?shop=${shop}&host=${host}`);
-          } else {
-            router.replace('/login');
-          }
+          router.replace(
+            shop && host
+              ? `/login?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`
+              : '/login'
+          );
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('❌ Auth check failed:', error);
         router.replace('/login');
       }
     };
@@ -37,8 +36,8 @@ export default function Home() {
   }, [router, searchParams]);
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <h1 className="text-2xl">Redirecting...</h1>
+    <div className="flex items-center justify-center h-screen text-gray-500 dark:text-gray-400">
+      <h1 className="text-xl font-semibold animate-pulse">🔄 Redirecting...</h1>
     </div>
   );
 }

@@ -29,7 +29,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   if (loading) {
-    return <div className="p-6 text-gray-500">🔐 Checking session...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500 text-center p-4">
+        🔐 Checking session...
+      </div>
+    );
   }
 
   return <>{children}</>;

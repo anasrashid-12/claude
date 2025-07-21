@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ImageCard from './ImageCard';
+import { RefreshCw } from 'lucide-react';
 
 export interface ImageData {
   id: string;
@@ -17,22 +18,24 @@ export default function ImageGallery({ shop }: { shop: string }) {
   const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchImages = async () => {
+    setRefreshing(true);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/image/supabase/get-images?shop=${shop}`,
         { credentials: 'include' }
       );
       if (!res.ok) throw new Error('Failed to fetch images');
-
       const data = await res.json();
       setImages(data.images || []);
     } catch (err) {
-      console.error('Error fetching images:', err);
+      console.error(err);
       setError(true);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -40,50 +43,28 @@ export default function ImageGallery({ shop }: { shop: string }) {
     if (shop) fetchImages();
   }, [shop]);
 
-  if (loading) {
-    return (
-      <div className="text-center py-12 text-gray-500 text-sm">
-        🔄 Loading your images...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12 text-red-600 text-sm">
-        ❌ Failed to load images. Please try again later.
-      </div>
-    );
-  }
-
-  if (images.length === 0) {
-    return (
-      <div className="text-center py-12 text-gray-500 text-sm">
-        📭 No images found. Upload some to get started.
-      </div>
-    );
-  }
+  if (loading) return <p className="text-center py-12 text-gray-500">🔄 Loading images...</p>;
+  if (error) return <p className="text-center py-12 text-red-600">❌ Failed to load images.</p>;
+  if (images.length === 0)
+    return <p className="text-center py-12 text-gray-500">📭 No images yet.</p>;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
         <h2 className="text-xl font-semibold text-gray-800">📸 Your Processed Images</h2>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-gray-500">{images.length} image(s)</p>
-          <button
-            onClick={fetchImages}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            🔄 Refresh
-          </button>
-        </div>
+        <button
+          onClick={fetchImages}
+          disabled={refreshing}
+          className="flex items-center gap-1 text-sm text-blue-600 hover:underline disabled:opacity-50"
+        >
+          {refreshing && <RefreshCw className="w-4 h-4 animate-spin" />}
+          Refresh
+        </button>
       </div>
 
-      {/* Gallery Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {images.map((image) => (
-          <ImageCard key={image.id} image={image} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {images.map((img) => (
+          <ImageCard key={img.id} image={img} />
         ))}
       </div>
     </div>

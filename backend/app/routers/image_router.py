@@ -10,7 +10,8 @@ image_router = APIRouter()
 logger = logging.getLogger("image_router")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
-
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+BUCKET_NAME = "makeit3d-public"
 
 def validate_uuid(id_str: str):
     try:
@@ -18,8 +19,6 @@ def validate_uuid(id_str: str):
     except Exception:
         return None
 
-
-# ✅ Queue an image for processing
 @image_router.post("/process")
 async def process_image(request: Request, session: str = Cookie(None)):
     if not session:
@@ -34,32 +33,32 @@ async def process_image(request: Request, session: str = Cookie(None)):
         raise HTTPException(status_code=401, detail="Invalid session")
 
     data = await request.json()
-    image_url = data.get("image_url")
-    if not image_url:
-        raise HTTPException(status_code=400, detail="Missing image_url")
+    filename = data.get("filename")
+    operation = data.get("operation")
 
-    image_id = str(uuid.uuid4())
+    if not filename or not operation:
+        raise HTTPException(status_code=400, detail="Missing filename or operation")
 
-    # Save to Supabase
-    supabase.table("images").insert({
-        "id": image_id,
-        "shop": shop,
-        "image_url": image_url,
-        "status": "queued"
-    }).execute()
+    image_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{filename}"
 
-    # Send to Celery task
-    task = process_image_task.delay(image_id, image_url)
+    # ✅ Fetch the existing image record (created by /upload)
+    result = supabase.table("images").select("id").eq("shop", shop).eq("filename", filename).single().execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Image not found. Make sure it is uploaded first.")
+
+    image_id = result.data["id"]
+
+    task = process_image_task.delay(image_id, image_url, operation)
 
     return {
         "success": True,
-        "message": "Image queued",
+        "message": "Image queued for processing",
         "task_id": task.id,
         "image_id": image_id,
+        "image_url": image_url
     }
 
-
-# ✅ Get status of a specific image
 @image_router.get("/status/{image_id}")
 async def get_image_status(image_id: str):
     valid_id = validate_uuid(image_id)
@@ -81,7 +80,6 @@ async def get_image_status(image_id: str):
     }
 
 
-# ✅ Get all images for the current shop (via session)
 @image_router.get("/images")
 async def get_images_by_shop(session: str = Cookie(None)):
     if not session:
