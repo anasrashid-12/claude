@@ -1,7 +1,7 @@
 'use client';
 
 import { Card } from '@shopify/polaris';
-import { cn } from '../../utils/utils';
+import { cn } from '../lib/utils';
 
 export default function ThemedCard({
   children,
