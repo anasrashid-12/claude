@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.services.sentry_service import init_sentry
+from app.routers.metrics_router import register_metrics
+from app.routers.health_router import health_router
 from app.routers.auth_router import auth_router
 from app.routers.upload_router import upload_router
 from app.routers.image_router import image_router
@@ -19,6 +22,7 @@ import os
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
+init_sentry()
 
 def create_app():
     app = FastAPI(
@@ -71,6 +75,8 @@ def create_app():
         return JSONResponse({"error": "Internal Server Error"}, status_code=500)
 
     # ✅ Include All Routers
+    register_metrics(app)
+    app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(upload_router)
     app.include_router(image_router)
