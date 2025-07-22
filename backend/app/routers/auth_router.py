@@ -127,7 +127,9 @@ async def auth_callback(request: Request):
     dashboard_url = f"{FRONTEND_URL}/dashboard?shop={shop}&host={host}&token={token}"
     print("🚀 Redirecting to frontend:", dashboard_url)
 
-    response = RedirectResponse(url=dashboard_url)
+    # 🍪 Set session cookie ONLY on backend domain
+    response = RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
+
     response.set_cookie(
         key="session",
         value=token,
@@ -136,7 +138,10 @@ async def auth_callback(request: Request):
         samesite="None",
         max_age=86400,
         path="/",
+        domain="maxflow-ai-frontend.up.railway.app"
     )
+
+    # Let frontend read shop & host
     response.set_cookie(
         key="host",
         value=host,
@@ -145,6 +150,7 @@ async def auth_callback(request: Request):
         samesite="None",
         max_age=86400,
         path="/",
+        domain="maxflow-ai-frontend.up.railway.app"
     )
     response.set_cookie(
         key="shop",
@@ -154,6 +160,7 @@ async def auth_callback(request: Request):
         samesite="None",
         max_age=86400,
         path="/",
+        domain="maxflow-ai-frontend.up.railway.app"
     )
 
     return response
