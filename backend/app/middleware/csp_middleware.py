@@ -2,6 +2,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 import os
+from urllib.parse import urlparse
 
 class CSPMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -11,8 +12,6 @@ class CSPMiddleware(BaseHTTPMiddleware):
         frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
         supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
 
-        # Extract hostnames for connect-src
-        from urllib.parse import urlparse
         supabase_host = urlparse(supabase_url).hostname or ""
         ws_supabase = f"wss://{supabase_host}" if supabase_host else ""
 

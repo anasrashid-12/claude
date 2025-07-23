@@ -1,4 +1,5 @@
 const path = require('path');
+const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
   experimental: {
@@ -22,7 +23,7 @@ const nextConfig = {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     let wsSupabase = '';
-  
+
     try {
       if (supabaseUrl) {
         wsSupabase = `wss://${new URL(supabaseUrl).hostname}`;
@@ -30,7 +31,7 @@ const nextConfig = {
     } catch {
       console.warn('Invalid SUPABASE URL in env');
     }
-  
+
     return [
       {
         source: '/(.*)',
@@ -38,23 +39,15 @@ const nextConfig = {
           {
             key: 'Content-Security-Policy',
             value: `
-              frame-ancestors https://admin.shopify.com https://*.myshopify.com;
               default-src 'self' https: data: blob:;
               script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:;
-              worker-src 'self' blob:;
               style-src 'self' 'unsafe-inline' https:;
               img-src 'self' data: blob: https:;
               font-src 'self' https: data:;
-              connect-src 
-                https://*.shopify.com 
-                https://cdn.shopify.com 
-                ${backendUrl} 
-                ${supabaseUrl} 
-                ${wsSupabase} 
-                wss://*.supabase.co 
-                blob: 
-                data:;
+              connect-src 'self' ${backendUrl} ${supabaseUrl} ${wsSupabase} https://*.shopify.com https://cdn.shopify.com wss://*.supabase.co blob: data:;
               media-src 'self' blob: data:;
+              worker-src 'self' blob:;
+              frame-ancestors https://admin.shopify.com https://*.myshopify.com;
               object-src 'none';
             `.replace(/\n/g, '').trim(),
           },
@@ -65,10 +58,8 @@ const nextConfig = {
         ],
       },
     ];
-  },  
+  },
 };
-
-const { withSentryConfig } = require('@sentry/nextjs');
 
 module.exports = withSentryConfig(nextConfig, {
   org: 'ai-image',
