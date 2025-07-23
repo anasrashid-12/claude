@@ -9,17 +9,26 @@ class CSPMiddleware(BaseHTTPMiddleware):
 
         backend_url = os.getenv("BACKEND_URL", "").rstrip("/")
         frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+        supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+
+        # Extract hostnames for connect-src
+        from urllib.parse import urlparse
+        supabase_host = urlparse(supabase_url).hostname or ""
+        ws_supabase = f"wss://{supabase_host}" if supabase_host else ""
 
         csp_policy = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.shopify.com; "
-            "style-src 'self' 'unsafe-inline' https://cdn.shopify.com; "
-            "font-src 'self' https://cdn.shopify.com data:; "
-            "img-src 'self' data: blob: https://cdn.shopify.com; "
-            f"connect-src 'self' {frontend_url} {backend_url} https: wss: data: blob:; "
+            "default-src 'self' https: data: blob:; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; "
+            "style-src 'self' 'unsafe-inline' https:; "
+            "img-src 'self' data: blob: https:; "
+            "font-src 'self' https: data:; "
+            f"connect-src 'self' {frontend_url} {backend_url} {supabase_url} {ws_supabase} "
+            "https://*.shopify.com https://cdn.shopify.com wss://*.supabase.co blob: data:; "
+            "media-src 'self' blob: data:; "
+            "worker-src 'self' blob:; "
             "frame-ancestors https://admin.shopify.com https://*.myshopify.com; "
             "frame-src https://admin.shopify.com https://*.myshopify.com; "
-            "media-src 'self' blob: data:;"
+            "object-src 'none';"
         )
 
         response.headers["Content-Security-Policy"] = csp_policy

@@ -18,11 +18,11 @@ const nextConfig = {
     return config;
   },
 
-  async headers() {
+  headers: async () => {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     let wsSupabase = '';
-
+  
     try {
       if (supabaseUrl) {
         wsSupabase = `wss://${new URL(supabaseUrl).hostname}`;
@@ -30,7 +30,7 @@ const nextConfig = {
     } catch {
       console.warn('Invalid SUPABASE URL in env');
     }
-
+  
     return [
       {
         source: '/(.*)',
@@ -40,7 +40,8 @@ const nextConfig = {
             value: `
               frame-ancestors https://admin.shopify.com https://*.myshopify.com;
               default-src 'self' https: data: blob:;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:;
+              worker-src 'self' blob:;
               style-src 'self' 'unsafe-inline' https:;
               img-src 'self' data: blob: https:;
               font-src 'self' https: data:;
@@ -64,7 +65,7 @@ const nextConfig = {
         ],
       },
     ];
-  },
+  },  
 };
 
 const { withSentryConfig } = require('@sentry/nextjs');
