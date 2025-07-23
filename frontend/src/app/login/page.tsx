@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getCookie } from 'cookies-next';
+import createApp from '@shopify/app-bridge';
+import { Redirect } from '@shopify/app-bridge/actions';
 
 export default function LoginPage() {
   const [shop, setShop] = useState('');
@@ -32,8 +34,16 @@ export default function LoginPage() {
       return;
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
-    window.top?.location.assign(`${backendUrl}/auth/install?shop=${formattedShop}&host=${host}`);
+    const app = createApp({
+      apiKey: process.env.NEXT_PUBLIC_SHOPIFY_API_KEY!,
+      host,
+      forceRedirect: true,
+    });
+
+    const redirect = Redirect.create(app);
+    redirect.dispatch(Redirect.Action.REMOTE, {
+      url: `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/install?shop=${formattedShop}&host=${host}`,
+    });
   };
 
   return (
