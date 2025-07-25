@@ -1,34 +1,36 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 
 export default function useAuth() {
-  const [authenticated, setAuthenticated] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [shop, setShop] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const fetchShop = async () => {
       try {
-        const res = await fetch('/api/me', {
-          credentials: 'include',
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+          credentials: 'include', // 👈 important to send cookie
+          headers: {
+            'Accept': 'application/json',
+          },
         });
 
-        if (res.ok) {
-          const { shop } = await res.json();
-          setAuthenticated(!!shop);
-        } else {
-          setAuthenticated(false);
+        if (!res.ok) {
+          throw new Error(`Auth failed: ${res.status}`);
         }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        setAuthenticated(false);
+
+        const data = await res.json();
+        setShop(data.shop);
+      } catch (err: any) {
+        console.error('useAuth error:', err);
+        setError(err.message || 'Auth error');
       } finally {
         setLoading(false);
       }
     };
 
-    checkAuth();
+    fetchShop();
   }, []);
 
-  return { authenticated, loading };
+  return { shop, loading, error };
 }

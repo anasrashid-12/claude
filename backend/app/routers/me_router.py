@@ -6,51 +6,35 @@ import os
 
 me_router = APIRouter()
 
-# 🔑 Environment Variables
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-# 🔗 Supabase Client
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
 
 @me_router.get("/me")
 async def get_me(request: Request):
-    # ✅ Try Authorization header first
     auth_header = request.headers.get("Authorization")
-    token = None
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid auth header")
 
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split("Bearer ")[1]
-    
-    # ✅ Fallback: check cookie
-    if not token:
-        token = request.cookies.get("session")
-
-    if not token:
-        raise HTTPException(status_code=401, detail="No session token found")
-
+    token = auth_header.replace("Bearer ", "")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         shop = payload.get("shop")
+        if not shop:
+            raise HTTPException(status_code=400, detail="Missing shop in token")
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Session expired")
+        raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid session token")
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-    if not shop:
-        raise HTTPException(status_code=400, detail="Shop missing in token")
-
-    # ✅ Fetch shop info from Supabase
-    response = supabase.table("shops").select("*").eq("shop", shop).maybe_single().execute()
-    shop_data = response.data
-
-    if shop_data is None:
+    result = supabase.table("shops").select("*").eq("shop", shop).maybe_single().execute()
+    if not result.data:
         raise HTTPException(status_code=404, detail="Shop not found")
 
     return JSONResponse({
         "shop": shop,
         "status": "authenticated",
-        "plan": shop_data.get("plan", "free")
+        "plan": result.data.get("plan", "free")
     })

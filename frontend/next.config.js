@@ -44,7 +44,7 @@ const nextConfig = {
               style-src 'self' 'unsafe-inline' https:;
               img-src 'self' data: blob: https:;
               font-src 'self' https: data:;
-              connect-src 'self' ${backendUrl} ${supabaseUrl} ${wsSupabase} https://*.shopify.com https://cdn.shopify.com wss://*.supabase.co blob: data:;
+              connect-src 'self' ${backendUrl} ${supabaseUrl} ${wsSupabase} https://*.shopify.com https://cdn.shopify.com wss://*.supabase.co blob: data: https://o4509700386062336.ingest.us.sentry.io;
               media-src 'self' blob: data:;
               worker-src 'self' blob:;
               frame-ancestors https://admin.shopify.com https://*.myshopify.com;

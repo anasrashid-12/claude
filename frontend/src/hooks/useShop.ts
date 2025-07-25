@@ -5,12 +5,13 @@ import { useEffect, useState } from 'react';
 export default function useShop() {
   const [shop, setShop] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ✅ Save token from URL to localStorage if available
     const url = new URL(window.location.href);
     const urlToken = url.searchParams.get('token');
+
+    // ✅ Store token from URL
     if (urlToken) {
       localStorage.setItem('session', urlToken);
       const cleanUrl = `${url.origin}${url.pathname}`;
