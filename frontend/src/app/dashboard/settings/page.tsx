@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Text,
   Checkbox,
@@ -12,8 +12,8 @@ import {
   InlineStack,
   Divider,
 } from '@shopify/polaris';
-import { createClient } from '@supabase/supabase-js';
 import useShop from '@/hooks/useShop';
+import { getSupabase } from '../../../../utils/supabaseClient'; // ✅ use shared client
 
 export default function SettingsPage() {
   const { shop, loading: shopLoading } = useShop();
@@ -26,14 +26,11 @@ export default function SettingsPage() {
   const [toastActive, setToastActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const supabase = useMemo(() => createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  ), []);
+  const supabase = getSupabase(); // ✅ reuse shared instance
 
   useEffect(() => {
     if (!shop) return;
-  
+
     (async () => {
       try {
         const { data, error: fetchError } = await supabase
@@ -41,7 +38,7 @@ export default function SettingsPage() {
           .select('*')
           .eq('shop', shop)
           .maybeSingle();
-  
+
         if (fetchError) {
           setError(fetchError.message);
         } else if (!data) {
@@ -68,7 +65,7 @@ export default function SettingsPage() {
         setLoading(false);
       }
     })();
-  }, [shop, supabase]);  
+  }, [shop]);
 
   const handleSave = async () => {
     if (!shop) return;
@@ -168,13 +165,13 @@ export default function SettingsPage() {
             </InlineStack>
 
             <div className="flex justify-end mt-6">
-            <button
-              onClick={handleSave}
-              disabled={!shop || saving}
-              className={`bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-5 rounded transition ${(!shop || saving) ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {saving ? 'Saving...' : 'Save Settings'}
-            </button>
+              <button
+                onClick={handleSave}
+                disabled={!shop || saving}
+                className={`bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-5 rounded transition ${(!shop || saving) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
             </div>
           </BlockStack>
         </div>

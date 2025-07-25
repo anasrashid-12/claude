@@ -3,20 +3,16 @@
 import { Bell, CircleHelp, Moon, Sun } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import useShop from '@/hooks/useShop';
-import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSupabase } from '../../utils/supabaseClient'; // Adjust path if needed
 
 export default function TopBar() {
   const { theme, toggleTheme } = useTheme();
   const { shop } = useShop();
   const [avatar, setAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (!shop) return;
@@ -37,15 +33,19 @@ export default function TopBar() {
 
     const channel = supabase
       .channel(`realtime:settings-${shop}`)
-      .on('postgres_changes' as any, {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'settings',
-        filter: `shop=eq.${shop}`,
-      }, (payload: any) => {
-        const updated = payload.new as { avatar_url?: string };
-        if (updated?.avatar_url) setAvatar(updated.avatar_url);
-      })
+      .on(
+        'postgres_changes' as any,
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'settings',
+          filter: `shop=eq.${shop}`,
+        },
+        (payload: any) => {
+          const updated = payload.new as { avatar_url?: string };
+          if (updated?.avatar_url) setAvatar(updated.avatar_url);
+        }
+      )
       .subscribe();
 
     return () => {

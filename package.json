@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@supabase/ssr": "^0.6.1",
     "swr": "^2.3.4"
   }
 }

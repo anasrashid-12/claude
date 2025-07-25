@@ -8,10 +8,12 @@ export default function useShop() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const url = new URL(window.location.href);
     const urlToken = url.searchParams.get('token');
 
-    // ✅ Store token from URL
+    // ✅ Save token from URL to localStorage and clean URL
     if (urlToken) {
       localStorage.setItem('session', urlToken);
       const cleanUrl = `${url.origin}${url.pathname}`;
@@ -21,7 +23,7 @@ export default function useShop() {
     const fetchShop = async () => {
       const jwt = localStorage.getItem('session');
       if (!jwt) {
-        setLoading(false);
+        if (isMounted) setLoading(false);
         return;
       }
 
@@ -29,25 +31,35 @@ export default function useShop() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
           headers: {
             Authorization: `Bearer ${jwt}`,
+            Accept: 'application/json',
           },
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          setShop(data.shop);
+        if (!res.ok) {
+          throw new Error(`Failed with status ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (isMounted) {
+          setShop(data.shop || null);
           setToken(jwt);
-        } else {
-          setShop(null);
         }
       } catch (error) {
-        console.error('Error fetching shop info:', error);
-        setShop(null);
+        console.error('useShop error:', error);
+        if (isMounted) {
+          setShop(null);
+          setToken(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchShop();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { shop, token, loading };

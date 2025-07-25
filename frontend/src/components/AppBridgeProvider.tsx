@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState, useMemo } from 'react';
 import { Provider } from '@shopify/app-bridge-react';
 import { getCookie, setCookie } from 'cookies-next';
 import { useSearchParams } from 'next/navigation';
+import { getSupabase } from '../../utils/supabaseClient'; // ✅ import your shared Supabase client
 
 interface AppBridgeProviderProps {
   children: ReactNode;
@@ -17,6 +18,8 @@ export default function AppBridgeProvider({ children }: AppBridgeProviderProps) 
   const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY!;
 
   useEffect(() => {
+    const supabase = getSupabase(); 
+
     const urlHost = searchParams.get('host');
     const urlShop = searchParams.get('shop');
     const cookieHost = getCookie('host') as string | undefined;

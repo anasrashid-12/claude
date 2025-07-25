@@ -1,11 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import useShop from '@/hooks/useShop';
 import DashboardHeader from '@/components/DashboardHeader';
 import StatsGrid from '@/components/StatsGrid';
 import RecentImportsTable from '@/components/RecentImportsTable';
 import ComingSoonFeatures from '@/components/ComingSoonFeatures';
-import { useEffect, useState } from 'react';
+import { getSupabase } from '../../../utils/supabaseClient'; 
 
 export default function DashboardClient() {
   const { shop, loading: shopLoading } = useShop();
@@ -24,11 +25,18 @@ export default function DashboardClient() {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/images`, {
-          credentials: 'include',
-        });
+        const supabase = getSupabase();
 
-        const { images } = await res.json();
+        const { data: images, error } = await supabase
+          .from('images')
+          .select('*')
+          .eq('shop', shop)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('❌ Supabase error:', error.message);
+          return;
+        }
 
         setStats({
           total: images.length,
@@ -43,7 +51,7 @@ export default function DashboardClient() {
             .slice(0, 5)
             .map((img: any) => ({
               url: img.processed_url,
-              product: img.image_url.split('/').pop(),
+              product: img.image_url?.split('/').pop() ?? 'Unnamed',
               status: img.status,
             }))
         );

@@ -1,14 +1,9 @@
 'use client';
 
 import useShop from '@/hooks/useShop';
-import { createClient } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { Badge, EmptyState, Thumbnail, BlockStack, Text } from '@shopify/polaris';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSupabase } from '../../../../utils/supabaseClient'; // ✅ shared client
 
 interface ImageRecord {
   id: string;
@@ -26,6 +21,7 @@ export default function QueuePage() {
   useEffect(() => {
     if (!shop) return;
 
+    const supabase = getSupabase(); // ✅ reuse shared instance
     let interval: NodeJS.Timeout;
     let channel: ReturnType<typeof supabase.channel>;
 
@@ -50,10 +46,16 @@ export default function QueuePage() {
       .channel(`realtime:images-${shop}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'images', filter: `shop=eq.${shop}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'images',
+          filter: `shop=eq.${shop}`,
+        },
         (payload) => {
           const newRecord = payload.new as ImageRecord;
           const eventType = payload.eventType;
+
           setImages((prev) => {
             if (eventType === 'INSERT') return [newRecord, ...prev];
             if (eventType === 'UPDATE')
@@ -106,7 +108,9 @@ export default function QueuePage() {
   return (
     <div className="px-4 sm:px-6 pt-10 pb-16 max-w-7xl mx-auto text-gray-900 dark:text-white">
       <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">📋 Image Queue</h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-6">Monitor your image processing queue in real time.</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
+        Monitor your image processing queue in real time.
+      </p>
 
       {activeImages.length === 0 ? (
         <EmptyState

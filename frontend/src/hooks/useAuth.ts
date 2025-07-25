@@ -6,12 +6,14 @@ export default function useAuth() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchShop = async () => {
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
-          credentials: 'include', // 👈 important to send cookie
+          credentials: 'include', // Important for sending cookies
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
           },
         });
 
@@ -20,16 +22,27 @@ export default function useAuth() {
         }
 
         const data = await res.json();
-        setShop(data.shop);
+
+        if (isMounted) {
+          setShop(data.shop);
+        }
       } catch (err: any) {
         console.error('useAuth error:', err);
-        setError(err.message || 'Auth error');
+        if (isMounted) {
+          setError(err.message || 'Authentication error');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchShop();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { shop, loading, error };

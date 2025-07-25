@@ -2,16 +2,11 @@
 
 import useSWR from 'swr';
 import useShop from '@/hooks/useShop';
-import { createClient } from '@supabase/supabase-js';
 import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getSupabase } from '../../../../utils/supabaseClient'; // ✅ Using shared client
 
 interface ImageItem {
   id: string;
@@ -22,10 +17,13 @@ interface ImageItem {
   filename: string;
 }
 
-const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((res) => res.json());
+const fetcher = (url: string) =>
+  fetch(url, { credentials: 'include' }).then((res) => res.json());
 
 export default function GalleryPage() {
   const { shop, loading: shopLoading } = useShop();
+  const supabase = getSupabase(); // ✅ Reuse shared instance
+
   const { data, error, isLoading, mutate } = useSWR(
     shop ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/images` : null,
     fetcher,
@@ -34,11 +32,17 @@ export default function GalleryPage() {
 
   useEffect(() => {
     if (!shop) return;
+
     const channel = supabase
       .channel(`realtime:gallery-${shop}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'images', filter: `shop=eq.${shop}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'images',
+          filter: `shop=eq.${shop}`,
+        },
         () => mutate()
       )
       .subscribe();
@@ -46,7 +50,7 @@ export default function GalleryPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [shop, mutate]);
+  }, [shop, mutate, supabase]); // ✅ include supabase in deps
 
   const handleDownload = (filename: string) => {
     const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/download?filename=${encodeURIComponent(filename)}`;
@@ -106,9 +110,7 @@ export default function GalleryPage() {
                     />
                   </div>
                   <div className="text-sm space-y-1">
-                    <p>
-                      Status: <span className="text-green-600 font-medium">✅ Done</span>
-                    </p>
+                    <p>Status: <span className="text-green-600 font-medium">✅ Done</span></p>
                     <button
                       onClick={(e) => {
                         e.preventDefault();
