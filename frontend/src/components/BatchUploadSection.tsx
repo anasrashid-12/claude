@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import useShop from '@/hooks/useShop';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { getSupabase } from '@/lib/supabaseClient'; // ✅ import shared Supabase client
+import { getSupabase } from '../../utils/supabaseClient';
 
 const MAX_FILE_SIZE_MB = 5;
 
@@ -16,7 +16,6 @@ export default function BatchUploadSection() {
   const [uploading, setUploading] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
 
-  // ✅ Initialize once on mount if needed for later use
   useEffect(() => {
     getSupabase(); 
   }, []);
