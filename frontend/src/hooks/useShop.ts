@@ -1,55 +1,41 @@
+// frontend/src/hooks/useShop.ts
 'use client';
 
 import { useEffect, useState } from 'react';
 
-export default function useShop() {
+interface UseShopResult {
+  shop: string | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export default function useShop(): UseShopResult {
   const [shop, setShop] = useState<string | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    const url = new URL(window.location.href);
-    const urlToken = url.searchParams.get('token');
-
-    // ✅ Save token from URL to localStorage and clean URL
-    if (urlToken) {
-      localStorage.setItem('session', urlToken);
-      const cleanUrl = `${url.origin}${url.pathname}`;
-      window.history.replaceState({}, '', cleanUrl);
-    }
-
     const fetchShop = async () => {
-      const jwt = localStorage.getItem('session');
-      if (!jwt) {
-        if (isMounted) setLoading(false);
-        return;
-      }
-
       try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
+          method: 'GET',
+          credentials: 'include',
           headers: {
-            Authorization: `Bearer ${jwt}`,
             Accept: 'application/json',
           },
         });
 
         if (!res.ok) {
-          throw new Error(`Failed with status ${res.status}`);
+          throw new Error(`Auth failed: ${res.status}`);
         }
 
         const data = await res.json();
-        if (isMounted) {
-          setShop(data.shop || null);
-          setToken(jwt);
-        }
-      } catch (error) {
-        console.error('useShop error:', error);
-        if (isMounted) {
-          setShop(null);
-          setToken(null);
-        }
+        if (isMounted) setShop(data.shop || null);
+      } catch (err: any) {
+        console.warn('[useShop] Error:', err.message || err);
+        if (isMounted) setError(err.message || 'Authentication error');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -62,5 +48,5 @@ export default function useShop() {
     };
   }, []);
 
-  return { shop, token, loading };
+  return { shop, loading, error };
 }
