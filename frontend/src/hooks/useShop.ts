@@ -1,4 +1,3 @@
-// frontend/src/hooks/useShop.ts
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -27,14 +26,12 @@ export default function useShop(): UseShopResult {
           },
         });
 
-        if (!res.ok) {
-          throw new Error(`Auth failed: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
 
         const data = await res.json();
-        if (isMounted) setShop(data.shop || null);
+        if (isMounted) setShop(data.shop);
       } catch (err: any) {
-        console.warn('[useShop] Error:', err.message || err);
+        console.error('[useShop] Error:', err);
         if (isMounted) setError(err.message || 'Authentication error');
       } finally {
         if (isMounted) setLoading(false);

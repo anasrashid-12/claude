@@ -14,11 +14,10 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 @me_router.get("/me")
 async def get_me(request: Request):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid auth header")
+    token = request.cookies.get("session")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing session cookie")
 
-    token = auth_header.replace("Bearer ", "")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         shop = payload.get("shop")
