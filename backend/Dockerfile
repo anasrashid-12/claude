@@ -23,9 +23,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
+# Make sure start.sh is executable
+RUN chmod +x start.sh
+
 # Expose FastAPI port
 EXPOSE 8000
 
-# Default command
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
-
+# Start FastAPI + Celery
+CMD ["./start.sh"]
