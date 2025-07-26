@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { ImageData } from './ImageGallery';
 
 export default function ImageCard({ image }: { image: ImageData }) {
@@ -17,13 +16,15 @@ export default function ImageCard({ image }: { image: ImageData }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow p-4 space-y-3 group">
       <div className="relative w-full h-40 sm:h-48 md:h-56 rounded-lg overflow-hidden bg-gray-100">
-        <Image
-          src={image.processed_url || image.image_url}
-          alt={`Image (${image.status})`}
-          fill
-          sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-cover group-hover:scale-105 transition-transform"
-        />
+        {(image.processed_url || image.image_url) ? (
+          <img
+            src={image.processed_url || image.image_url}
+            alt={`Image (${image.status})`}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-200 animate-pulse" />
+        )}
       </div>
 
       <div className="text-xs sm:text-sm space-y-2">
