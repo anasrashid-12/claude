@@ -59,6 +59,14 @@ async def install(request: Request, shop: str = None, host: str = None):
     if not shop or not host:
         raise HTTPException(status_code=400, detail="Missing shop or host")
 
+    # Redirect to frontend so we can break out of iframe
+    return RedirectResponse(f"{FRONTEND_URL}/auth/toplevel?shop={shop}&host={host}")
+
+@auth_router.get("/auth/oauth")
+async def oauth(request: Request, shop: str = None, host: str = None):
+    if not shop or not host:
+        raise HTTPException(status_code=400, detail="Missing shop or host")
+
     query = urllib.parse.urlencode({
         "client_id": SHOPIFY_API_KEY,
         "scope": SCOPES,
@@ -67,7 +75,6 @@ async def install(request: Request, shop: str = None, host: str = None):
     })
 
     return RedirectResponse(f"https://{shop}/admin/oauth/authorize?{query}")
-
 
 # ──────────────────────🔁 Shopify OAuth Callback ──────────────────────
 @auth_router.get("/auth/callback")
