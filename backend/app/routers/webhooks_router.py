@@ -1,63 +1,68 @@
-# backend/routers/webhook_router.py
-from fastapi import APIRouter, Request, Header, HTTPException
-from supabase import create_client
-import os
+from fastapi import APIRouter, Request, HTTPException
+from app.services.supabase_service import supabase
+from app.logging_config import logger
 import hmac
 import hashlib
 import base64
-import logging
+import os
 
 webhook_router = APIRouter()
+SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_API_SECRET")
 
-# Environment Variables
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-SHOPIFY_API_SECRET = os.getenv("SHOPIFY_API_SECRET")
+def verify_webhook_hmac(body: bytes, hmac_header: str) -> bool:
+    digest = hmac.new(SHOPIFY_WEBHOOK_SECRET.encode('utf-8'), body, hashlib.sha256).digest()
+    calculated_hmac = base64.b64encode(digest).decode()
+    return hmac.compare_digest(calculated_hmac, hmac_header)
 
-# Supabase client
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-logger = logging.getLogger("uvicorn")
-
-
-# 🔐 Verify Shopify Webhook HMAC
-def verify_webhook(hmac_header: str, data: bytes) -> bool:
-    hash_bytes = hmac.new(SHOPIFY_API_SECRET.encode(), data, hashlib.sha256).digest()
-    expected_hmac = base64.b64encode(hash_bytes).decode()
-    return hmac.compare_digest(hmac_header, expected_hmac)
-
-
-# 🚫 App Uninstall Webhook Endpoint
 @webhook_router.post("/webhooks/uninstall")
-async def handle_uninstall(
-    request: Request,
-    x_shopify_hmac_sha256: str = Header(None),
-):
+async def handle_uninstall(request: Request):
     try:
         body = await request.body()
+        hmac_header = request.headers.get("X-Shopify-Hmac-Sha256")
 
-        if not x_shopify_hmac_sha256 or not verify_webhook(x_shopify_hmac_sha256, body):
-            logger.warning("[Webhook] Invalid uninstall webhook HMAC")
-            raise HTTPException(status_code=403, detail="Invalid webhook signature")
+        if not verify_webhook_hmac(body, hmac_header):
+            logger.warning("[Webhook] Invalid HMAC in uninstall webhook")
+            raise HTTPException(status_code=401, detail="Invalid HMAC")
 
         payload = await request.json()
         shop = payload.get("myshopify_domain")
+        logger.info(f"[Webhook] Received uninstall webhook from {shop}")
 
-        if not shop:
-            raise HTTPException(status_code=400, detail="Missing shop domain in webhook payload")
+        # 1. Delete all images from DB
+        db_delete_response = supabase.table("images").delete().eq("shop", shop).execute()
+        logger.info(f"[Webhook] Deleted {len(db_delete_response.data)} image records from DB for shop {shop}")
 
-        # 🗑️ Delete shop from `shops` table
-        supabase.table("shops").delete().eq("shop", shop).execute()
-        logger.info(f"[Webhook] Shop {shop} removed from 'shops' table")
+        # 2. Delete all files from Supabase Storage
+        await delete_images_from_storage(shop)
 
-        # 🗑️ Optionally delete all images related to the shop
-        supabase.table("images").delete().eq("shop", shop).execute()
-        logger.info(f"[Webhook] Images for shop {shop} removed from 'images' table")
+        # 3. Delete shop record from DB
+        shop_delete_response = supabase.table("shops").delete().eq("shop", shop).execute()
+        logger.info(f"[Webhook] Deleted shop record for {shop}")
 
-        return {"success": True, "message": f"Shop {shop} removed successfully"}
+        return {"message": "Uninstall cleanup completed"}
 
     except Exception as e:
         logger.error(f"[Webhook] Error handling uninstall webhook: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Uninstall webhook failed")
 
 
-__all__ = ["webhook_router"]
+async def delete_images_from_storage(shop: str):
+    try:
+        bucket = "makeit3d-public"
+        list_response = supabase.storage.from_(bucket).list(path=shop)
+        files = list_response.get("data", [])
+
+        if not files:
+            logger.info(f"[Storage] No files found for shop {shop}")
+            return
+
+        file_paths = [f"{shop}/{file['name']}" for file in files]
+        delete_response = supabase.storage.from_(bucket).remove(file_paths)
+
+        if delete_response.get("error"):
+            logger.error(f"[Storage] Failed to delete files: {delete_response['error']}")
+        else:
+            logger.info(f"[Storage] Deleted {len(file_paths)} files for shop {shop}")
+
+    except Exception as e:
+        logger.error(f"[Storage] Error deleting files from storage: {e}")

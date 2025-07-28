@@ -55,7 +55,7 @@ def create_app():
         response = await call_next(request)
         response.headers["Access-Control-Allow-Origin"] = FRONTEND_URL or "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["X-Frame-Options"] = "ALLOWALL"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["P3P"] = 'CP="Not used"'
         return response
 

@@ -19,11 +19,18 @@ def save_shop_token(shop: str, access_token: str):
             "shop": shop,
             "access_token": access_token,
         }).execute()
+
+        logger.debug(f"[Supabase] Upsert response: {response}")
+
+        if getattr(response, "error", None):
+            raise Exception(response.error)
+
         logger.info(f"[Supabase] ✅ Token saved for {shop}")
         return response
     except Exception as e:
         logger.error(f"[Supabase] ❌ Failed to save token for {shop}: {e}")
         raise
+
 
 
 def upload_to_storage(bucket: str, path: str, file_bytes: bytes, content_type: str = "image/png"):

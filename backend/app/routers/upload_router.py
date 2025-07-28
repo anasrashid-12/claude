@@ -61,7 +61,7 @@ async def upload_image(
         "shop": shop,
         "filename": filename,
         "image_url": your_image_url,
-        "status": "queued",
+        "status": "pending",
         "operation": operation
     }).execute()
 
