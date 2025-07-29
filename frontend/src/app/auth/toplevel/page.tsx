@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 
@@ -9,9 +8,15 @@ export default function TopLevelRedirectPage() {
   const host = searchParams.get('host');
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.top && shop && host) {
+    if (typeof window !== 'undefined' && shop && host) {
       const redirectUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/oauth?shop=${shop}&host=${host}`;
-      window.top.location.href = redirectUrl;
+      
+      // Only redirect if inside an iframe
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = redirectUrl;
+      } else {
+        window.location.href = redirectUrl;
+      }
     }
   }, [shop, host]);
 
