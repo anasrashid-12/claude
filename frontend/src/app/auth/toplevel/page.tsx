@@ -1,5 +1,5 @@
 'use client';
-
+export const dynamic = 'force-dynamic';
 import { useEffect } from 'react';
 import { Redirect } from '@shopify/app-bridge/actions';
 import { useAppBridge } from '@shopify/app-bridge-react';
