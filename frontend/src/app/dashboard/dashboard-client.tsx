@@ -21,30 +21,30 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!shop) return;
-
+  
+    const supabase = getSupabase();
+  
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const supabase = getSupabase();
-
         const { data: images, error } = await supabase
           .from('images')
           .select('*')
           .eq('shop', shop)
           .order('created_at', { ascending: false });
-
+  
         if (error) {
           console.error('❌ Supabase error:', error.message);
           return;
         }
-
+  
         setStats({
           total: images.length,
           processing: images.filter((img: any) => ['processing', 'queued'].includes(img.status)).length,
           failed: images.filter((img: any) => ['failed', 'error'].includes(img.status)).length,
           completed: images.filter((img: any) => ['processed', 'completed'].includes(img.status)).length,
         });
-
+  
         setRecent(
           images
             .filter((img: any) => img.processed_url)
@@ -61,10 +61,33 @@ export default function DashboardClient() {
         setLoading(false);
       }
     };
-
+  
+    // Initial fetch
     fetchStats();
+  
+    // Subscribe to realtime updates for this shop
+    const channel = supabase
+      .channel('realtime-images-dashboard')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // can be 'INSERT', 'UPDATE', 'DELETE'
+          schema: 'public',
+          table: 'images',
+          filter: `shop=eq.${shop}`,
+        },
+        (payload) => {
+          console.log('🔄 Realtime update:', payload);
+          fetchStats(); // refresh dashboard on any change
+        }
+      )
+      .subscribe();
+  
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [shop]);
-
+  
   if (shopLoading || loading) {
     return (
       <div className="p-6 flex justify-center items-center h-64 text-gray-500 dark:text-gray-300">
