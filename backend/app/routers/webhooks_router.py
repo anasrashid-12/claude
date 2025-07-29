@@ -28,14 +28,23 @@ async def handle_uninstall(request: Request):
         shop = payload.get("myshopify_domain")
         logger.info(f"[Webhook] Received uninstall webhook from {shop}")
 
-        # 1. Delete all images from DB
+        # 1. Fetch image filenames from DB for this shop
+        images_res = supabase.table("images").select("filename").eq("shop", shop).execute()
+        filenames = [row["filename"] for row in images_res.data]
+
+        # 2. Delete files from storage
+        if filenames:
+            delete_response = supabase.storage.from_("makeit3d-public").remove(filenames)
+            if delete_response.get("error"):
+                logger.error(f"[Storage] Failed to delete files: {delete_response['error']}")
+            else:
+                logger.info(f"[Storage] ✅ Deleted {len(filenames)} files from storage")
+
+        # 3. Delete all images from DB
         db_delete_response = supabase.table("images").delete().eq("shop", shop).execute()
-        logger.info(f"[Webhook] Deleted {len(db_delete_response.data)} image records from DB for shop {shop}")
+        logger.info(f"[Webhook] Deleted {len(db_delete_response.data)} image records from DB")
 
-        # 2. Delete all files from Supabase Storage
-        await delete_images_from_storage(shop)
-
-        # 3. Delete shop record from DB
+        # 4. Delete shop record
         shop_delete_response = supabase.table("shops").delete().eq("shop", shop).execute()
         logger.info(f"[Webhook] Deleted shop record for {shop}")
 
@@ -44,6 +53,7 @@ async def handle_uninstall(request: Request):
     except Exception as e:
         logger.error(f"[Webhook] Error handling uninstall webhook: {e}")
         raise HTTPException(status_code=500, detail="Uninstall webhook failed")
+
 
 
 async def delete_images_from_storage(shop: str):
