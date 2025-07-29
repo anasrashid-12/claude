@@ -56,7 +56,6 @@ export default function TopBar() {
   return (
     <div className="flex flex-wrap justify-between items-center px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
       <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
-        {shop || ''}
       </div>
 
       <div className="flex items-center gap-3">
