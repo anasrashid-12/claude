@@ -15,22 +15,21 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 def save_shop_token(shop: str, access_token: str):
     try:
+        logger.info(f"[Supabase] 🔄 Upserting token for {shop}")
         response = supabase.table("shops").upsert({
             "shop": shop,
             "access_token": access_token,
-        }).execute()
+        }, on_conflict="shop").execute()
 
-        logger.debug(f"[Supabase] Upsert response: {response}")
-
-        if getattr(response, "error", None):
-            raise Exception(response.error)
+        if response.error:
+            logger.error(f"[Supabase] ❌ Upsert error: {response.error}")
+            raise Exception(response.error.message)
 
         logger.info(f"[Supabase] ✅ Token saved for {shop}")
         return response
     except Exception as e:
-        logger.error(f"[Supabase] ❌ Failed to save token for {shop}: {e}")
+        logger.exception(f"[Supabase] ❌ Failed to save token for {shop}: {e}")
         raise
-
 
 
 def upload_to_storage(bucket: str, path: str, file_bytes: bytes, content_type: str = "image/png"):

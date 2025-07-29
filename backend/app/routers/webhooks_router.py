@@ -55,7 +55,6 @@ async def handle_uninstall(request: Request):
         raise HTTPException(status_code=500, detail="Uninstall webhook failed")
 
 
-
 async def delete_images_from_storage(shop: str):
     try:
         bucket = "makeit3d-public"
