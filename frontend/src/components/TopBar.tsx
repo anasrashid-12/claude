@@ -91,6 +91,7 @@ export default function TopBar() {
               alt="User Avatar"
               width={32}
               height={32}
+              unoptimized
               className="rounded-full object-cover"
             />
           )}
