@@ -1,5 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
+
 import { useEffect } from 'react';
 import { Redirect } from '@shopify/app-bridge/actions';
 import { useAppBridge } from '@shopify/app-bridge-react';
@@ -15,7 +16,6 @@ export default function TopLevelRedirectPage() {
     const redirectUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/oauth?shop=${shop}&host=${host}`;
 
     if (window.top === window.self) {
-      // Not in an iframe – safe to use form redirect
       const form = document.createElement('form');
       form.method = 'GET';
       form.action = redirectUrl;
