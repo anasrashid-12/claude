@@ -1,13 +1,14 @@
+// components/TopBar.tsx
 'use client';
 
-import { Bell, CircleHelp, Moon, Sun } from 'lucide-react';
+import { Bell, CircleHelp, Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import useShop from '@/hooks/useShop';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { getSupabase } from '../../utils/supabaseClient'; // Adjust path if needed
+import { getSupabase } from '../../utils/supabaseClient';
 
-export default function TopBar() {
+export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const { shop } = useShop();
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -54,9 +55,13 @@ export default function TopBar() {
   }, [shop]);
 
   return (
-    <div className="flex flex-wrap justify-between items-center px-4 sm:px-6 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-      <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
-      </div>
+    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      {/* Hamburger */}
+      <button onClick={onMenuClick} className="md:hidden text-gray-700 dark:text-white">
+        <Menu className="w-6 h-6" />
+      </button>
+
+      <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]" />
 
       <div className="flex items-center gap-3">
         <button
