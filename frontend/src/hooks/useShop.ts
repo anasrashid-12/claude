@@ -26,17 +26,10 @@ export default function useShop(): UseShopResult {
           },
         });
 
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`Auth failed: ${res.status} - ${errText}`);
-        }
+        if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
 
         const data = await res.json();
-        if (isMounted && data?.shop) {
-          setShop(data.shop);
-        } else {
-          throw new Error('No shop found in response');
-        }
+        if (isMounted) setShop(data.shop);
       } catch (err: any) {
         console.error('[useShop] Error:', err);
         if (isMounted) setError(err.message || 'Authentication error');
