@@ -38,6 +38,8 @@ export default function RecentImportsTable({ items }: { items: ImportItem[] }) {
                     <span className="text-green-600 dark:text-green-400">✅ Complete</span>
                   ) : item.status === 'Importing' ? (
                     <span className="text-blue-600 dark:text-blue-400">⏳ Importing</span>
+                  ) : item.status === 'Failed' ? (
+                    <span className="text-red-500 dark:text-red-400">❌ Failed</span>
                   ) : (
                     <span className="text-gray-600 dark:text-gray-300">🔄 {item.status}</span>
                   )}

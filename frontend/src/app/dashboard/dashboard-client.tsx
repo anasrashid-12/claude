@@ -6,7 +6,14 @@ import DashboardHeader from '@/components/DashboardHeader';
 import StatsGrid from '@/components/StatsGrid';
 import RecentImportsTable from '@/components/RecentImportsTable';
 import ComingSoonFeatures from '@/components/ComingSoonFeatures';
-import { getSupabase } from '../../../utils/supabaseClient'; 
+import { getSupabase } from '../../../utils/supabaseClient';
+
+interface ImageEntry {
+  image_url: string;
+  processed_url: string | null;
+  status: string;
+  created_at: string;
+}
 
 export default function DashboardClient() {
   const { shop, loading: shopLoading } = useShop();
@@ -16,14 +23,15 @@ export default function DashboardClient() {
     failed: 0,
     completed: 0,
   });
-  const [recent, setRecent] = useState<any[]>([]);
+  const [recent, setRecent] = useState<
+    { url: string; product: string; status: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!shop) return;
-  
     const supabase = getSupabase();
-  
+
     const fetchStats = async () => {
       setLoading(true);
       try {
@@ -32,62 +40,66 @@ export default function DashboardClient() {
           .select('*')
           .eq('shop', shop)
           .order('created_at', { ascending: false });
-  
-        if (error) {
-          console.error('❌ Supabase error:', error.message);
+
+        if (error || !images) {
+          console.error('❌ Supabase error:', error?.message);
           return;
         }
-  
+
         setStats({
           total: images.length,
-          processing: images.filter((img: any) => ['processing', 'queued'].includes(img.status)).length,
-          failed: images.filter((img: any) => ['failed', 'error'].includes(img.status)).length,
-          completed: images.filter((img: any) => ['processed', 'completed'].includes(img.status)).length,
+          processing: images.filter(img => ['processing', 'queued'].includes(img.status)).length,
+          failed: images.filter(img => ['failed', 'error'].includes(img.status)).length,
+          completed: images.filter(img => ['processed', 'completed'].includes(img.status)).length,
         });
-  
+
         setRecent(
           images
-            .filter((img: any) => img.processed_url)
+            .filter(img => img.processed_url)
             .slice(0, 5)
-            .map((img: any) => ({
-              url: img.processed_url,
+            .map(img => ({
+              url: img.processed_url!,
               product: img.image_url?.split('/').pop() ?? 'Unnamed',
-              status: img.status,
+              status: mapStatus(img.status),
             }))
         );
-      } catch (error) {
-        console.error('❌ Error fetching dashboard stats:', error);
+      } catch (err) {
+        console.error('❌ Error fetching dashboard stats:', err);
       } finally {
         setLoading(false);
       }
     };
-  
-    // Initial fetch
+
+    const mapStatus = (status: string) => {
+      if (['processed', 'completed'].includes(status)) return 'Complete';
+      if (['processing', 'queued'].includes(status)) return 'Importing';
+      if (['failed', 'error'].includes(status)) return 'Failed';
+      return 'Unknown';
+    };
+
     fetchStats();
-  
-    // Subscribe to realtime updates for this shop
+
     const channel = supabase
       .channel('realtime-images-dashboard')
       .on(
         'postgres_changes',
         {
-          event: '*', // can be 'INSERT', 'UPDATE', 'DELETE'
+          event: '*',
           schema: 'public',
           table: 'images',
           filter: `shop=eq.${shop}`,
         },
-        (payload) => {
-          console.log('🔄 Realtime update:', payload);
-          fetchStats(); // refresh dashboard on any change
+        () => {
+          fetchStats();
         }
       )
       .subscribe();
-  
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, [shop]);
-  
+
   if (shopLoading || loading) {
     return (
       <div className="p-6 flex justify-center items-center h-64 text-gray-500 dark:text-gray-300">
