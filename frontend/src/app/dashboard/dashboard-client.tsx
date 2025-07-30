@@ -30,74 +30,32 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!shop) return;
-    const supabase = getSupabase();
-
+  
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const { data: images, error } = await supabase
-          .from('images')
-          .select('*')
-          .eq('shop', shop)
-          .order('created_at', { ascending: false });
-
-        if (error || !images) {
-          console.error('❌ Supabase error:', error?.message);
-          return;
-        }
-
-        setStats({
-          total: images.length,
-          processing: images.filter(img => ['processing', 'queued'].includes(img.status)).length,
-          failed: images.filter(img => ['failed', 'error'].includes(img.status)).length,
-          completed: images.filter(img => ['processed', 'completed'].includes(img.status)).length,
+        const res = await fetch('/api/dashboard-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shop }),
         });
-
-        setRecent(
-          images
-            .filter(img => img.processed_url)
-            .slice(0, 5)
-            .map(img => ({
-              url: img.processed_url!,
-              product: img.image_url?.split('/').pop() ?? 'Unnamed',
-              status: mapStatus(img.status),
-            }))
-        );
+  
+        const { stats, recent, error } = await res.json();
+  
+        if (error) {
+          console.error('❌ API error:', error);
+        } else {
+          setStats(stats);
+          setRecent(recent);
+        }
       } catch (err) {
-        console.error('❌ Error fetching dashboard stats:', err);
+        console.error('❌ Fetch error:', err);
       } finally {
         setLoading(false);
       }
     };
-
-    const mapStatus = (status: string) => {
-      if (['processed', 'completed'].includes(status)) return 'Complete';
-      if (['processing', 'queued'].includes(status)) return 'Importing';
-      if (['failed', 'error'].includes(status)) return 'Failed';
-      return 'Unknown';
-    };
-
+  
     fetchStats();
-
-    const channel = supabase
-      .channel('realtime-images-dashboard')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'images',
-          filter: `shop=eq.${shop}`,
-        },
-        () => {
-          fetchStats();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [shop]);
 
   if (shopLoading || loading) {
