@@ -5,7 +5,7 @@ import { useTheme } from './ThemeProvider';
 import useShop from '@/hooks/useShop';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { getSupabase } from '../../utils/supabaseClient';
+import { getSupabase } from '../../utils/supabase/supabaseClient';
 
 export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();

@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
-import { getSupabase } from '../../../../utils/supabaseClient'; // ✅ Using shared client
+import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ Using shared client
 
 interface ImageItem {
   id: string;

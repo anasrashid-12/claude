@@ -6,7 +6,7 @@ import DashboardHeader from '@/components/DashboardHeader';
 import StatsGrid from '@/components/StatsGrid';
 import RecentImportsTable from '@/components/RecentImportsTable';
 import ComingSoonFeatures from '@/components/ComingSoonFeatures';
-import { getSupabase } from '../../../utils/supabaseClient';
+import { getSupabase } from '../../../utils/supabase/supabaseClient';
 
 interface ImageEntry {
   image_url: string;

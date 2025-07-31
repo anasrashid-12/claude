@@ -13,7 +13,7 @@ import {
   Divider,
 } from '@shopify/polaris';
 import useShop from '@/hooks/useShop';
-import { getSupabase } from '../../../../utils/supabaseClient'; // ✅ use shared client
+import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ use shared client
 
 export default function SettingsPage() {
   const { shop, loading: shopLoading } = useShop();

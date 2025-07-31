@@ -1,11 +1,16 @@
 // app/api/dashboard-stats/route.ts
-import { supabaseServer } from '../../../../utils/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   const { shop } = await req.json();
 
-  const { data: images, error } = await supabaseServer
+  const { data: images, error } = await supabase
     .from('images')
     .select('*')
     .eq('shop', shop)

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import useShop from '@/hooks/useShop';
 import Image from 'next/image';
 import { toast } from 'sonner';
-import { getSupabase } from '../../utils/supabaseClient';
+import { getSupabase } from '../../utils/supabase/supabaseClient';
 
 const MAX_FILE_SIZE_MB = 5;
 
