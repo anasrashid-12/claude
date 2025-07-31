@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Cookie
-from app.tasks.image_tasks import process_image_task
+from app.tasks.image_tasks import submit_job_task
 from app.services.supabase_service import supabase
 import uuid
 import logging
@@ -41,7 +41,6 @@ async def process_image(request: Request, session: str = Cookie(None)):
 
     image_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{filename}"
 
-    # ✅ Fetch the existing image record (created by /upload)
     result = supabase.table("images").select("id").eq("shop", shop).eq("filename", filename).single().execute()
 
     if not result.data:
@@ -49,7 +48,8 @@ async def process_image(request: Request, session: str = Cookie(None)):
 
     image_id = result.data["id"]
 
-    task = process_image_task.delay(image_id, image_url, operation)
+    # ✅ Now call the new task
+    task = submit_job_task.delay(image_id, operation, image_url)
 
     return {
         "success": True,
@@ -78,7 +78,6 @@ async def get_image_status(image_id: str):
         "processed_url": result.data.get("processed_url"),
         "error": result.data.get("error_message")
     }
-
 
 @image_router.get("/images")
 async def get_images_by_shop(session: str = Cookie(None)):
