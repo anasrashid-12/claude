@@ -1,9 +1,0 @@
-{
-    "build": {
-      "dockerfilePath": "Dockerfile.celery"
-    },
-    "deploy": {
-      "startCommand": "celery -A app.celery_app.celery_app worker --loglevel=info -Q image_queue"
-    }
-  }
-  

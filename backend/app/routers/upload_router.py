@@ -1,78 +1,58 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie, Form
-import uuid, os, jwt
-from app.logging_config import logger
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Form
 from app.services.supabase_service import supabase
+from app.logging_config import logger
+from app.tasks.image_tasks import submit_job_task
+import uuid
+import os
+import jwt
 
 upload_router = APIRouter()
 
 YOUR_BUCKET = "makeit3d-public"
-YOUR_SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-MAX_FILE_SIZE_MB = 5
-
 @upload_router.post("/upload")
-async def upload_image(
-    request: Request,
-    image: UploadFile = File(...),
-    operation: str = Form(...),
-    session: str = Cookie(None)
-):
-    if not session:
-        raise HTTPException(status_code=401, detail="Missing session")
-
+async def upload_image(request: Request, file: UploadFile = File(...), operation: str = Form(...)):
     try:
-        payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
+        token = request.cookies.get("session")
+        if not token:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         shop = payload.get("shop")
+
+        if not shop:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        filename = f"{uuid.uuid4()}.png"
+        file_content = await file.read()
+
+        res = supabase.storage.from_(YOUR_BUCKET).upload(f"{shop}/{filename}", file_content, {"content-type": "image/png"})
+        if res.get("error"):
+            raise HTTPException(status_code=500, detail=res["error"]["message"])
+
+        public_url_res = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
+        image_url = public_url_res.get("publicUrl")
+
+        if not image_url:
+            raise HTTPException(status_code=500, detail="Failed to get public URL")
+
+        image_data = {
+            "shop": shop,
+            "status": "queued",
+            "original_url": image_url,
+            "operation": operation,
+        }
+
+        result = supabase.table("images").insert(image_data).execute()
+        image_id = result.data[0]["id"]
+
+        submit_job_task.delay(image_id, operation, image_url)
+
+        return {"message": "Image uploaded and processing started", "id": image_id}
+
     except Exception as e:
-        logger.error(f"❌ Invalid JWT session: {e}")
-        raise HTTPException(status_code=401, detail="Invalid session token")
-
-    if not shop:
-        raise HTTPException(status_code=401, detail="Invalid session: shop missing")
-
-    logger.info(f"✅ Uploading image for shop: {shop} with operation: {operation}")
-
-    # ✅ Validate file size (max 5MB)
-    content = await image.read()
-    file_size_mb = len(content) / (1024 * 1024)
-    if file_size_mb > MAX_FILE_SIZE_MB:
-        raise HTTPException(status_code=400, detail=f"File size exceeds {MAX_FILE_SIZE_MB}MB limit")
-
-    ext = os.path.splitext(image.filename)[-1]
-    filename = f"uploads/{uuid.uuid4().hex}{ext}"
-
-    logger.info(f"📥 Uploading file '{filename}' ({round(file_size_mb, 2)}MB) to bucket '{YOUR_BUCKET}'...")
-    response = supabase.storage.from_(YOUR_BUCKET).upload(
-        filename, content, {"content-type": image.content_type}
-    )
-
-    logger.info(f"📝 Upload Response: {response}")
-    if hasattr(response, "error") and response.error:
-        logger.error(f"🔥 Upload failed: {response.error}")
-        raise HTTPException(status_code=500, detail="Your Supabase upload failed")
-
-    your_image_url = f"{YOUR_SUPABASE_URL}/storage/v1/object/public/{YOUR_BUCKET}/{filename}"
-    logger.info(f"✅ Uploaded URL: {your_image_url}")
-
-    image_id = str(uuid.uuid4())
-    insert_res = supabase.table("images").insert({
-        "id": image_id,
-        "shop": shop,
-        "filename": filename,
-        "image_url": your_image_url,
-        "status": "pending",
-        "operation": operation
-    }).execute()
-
-    logger.info(f"📝 Insert Response: {insert_res}")
-    if hasattr(insert_res, "error") and insert_res.error:
-        logger.error(f"🔥 Insert failed: {insert_res.error}")
-        raise HTTPException(status_code=500, detail="Failed to insert image record")
-
-    return {
-        "message": "✅ Image uploaded and queued",
-        "image_id": image_id,
-        "image_url": your_image_url,
-        "filename": filename
-    }
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Upload failed")
