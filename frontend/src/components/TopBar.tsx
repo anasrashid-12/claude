@@ -1,4 +1,3 @@
-// components/TopBar.tsx
 'use client';
 
 import { Bell, CircleHelp, Moon, Sun, Menu } from 'lucide-react';
@@ -55,9 +54,9 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   }, [shop]);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-      {/* Hamburger */}
-      <button onClick={onMenuClick} className="md:hidden text-gray-700 dark:text-white">
+    <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      {/* Hamburger for mobile */}
+      <button onClick={onMenuClick} className="md:hidden text-gray-700 dark:text-white z-50">
         <Menu className="w-6 h-6" />
       </button>
 

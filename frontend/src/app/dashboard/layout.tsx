@@ -31,7 +31,9 @@ function InnerLayout({ children }: { children: ReactNode }) {
 
           {/* Main Content */}
           <div className="flex flex-col flex-1 overflow-hidden">
-            <TopBar onMenuClick={() => setSidebarOpen(true)} />
+            <div className="sticky top-0 z-50">
+              <TopBar onMenuClick={() => setSidebarOpen(true)} />
+            </div>
             <main className="flex-1 overflow-y-auto p-4 sm:p-6">
               <Suspense fallback={<p className="text-center text-gray-500 dark:text-gray-400">Loading...</p>}>
                 {children}
