@@ -86,20 +86,20 @@ def poll_all_processing_images():
                                 file_options={"content-type": "image/png"},
                             )
 
-                            if upload_res.get("error"):
-                                raise Exception(upload_res["error"]["message"])
+                            if upload_res.error:
+                                raise Exception(upload_res.error.message)
 
                             signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
                                 path=storage_path,
                                 expires_in=60 * 60 * 24 * 7
                             )
 
-                            if signed_res.get("error"):
-                                raise Exception(signed_res["error"]["message"])
+                            if signed_res.error:
+                                raise Exception(signed_res.error.message)
 
                             supabase.table("images").update({
                                 "status": "completed",
-                                "processed_url": signed_res["signedURL"]
+                                "processed_url": signed_res.data.get("signedURL")
                             }).eq("id", image_id).execute()
 
                             logger.info(f"Image {image_id} processed and saved to: {storage_path}")

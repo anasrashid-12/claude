@@ -41,17 +41,17 @@ async def upload_image(
             file_options={"content-type": file.content_type},
         )
 
-        if upload_response.get("error"):
-            raise Exception(upload_response["error"]["message"])
+        if upload_response.error:
+            raise Exception(upload_response.error.message)
 
         signed_url_resp = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
             path=path, expires_in=60 * 60 * 24 * 7
         )
 
-        if signed_url_resp.get("error"):
-            raise Exception(signed_url_resp["error"]["message"])
+        if signed_url_resp.error:
+            raise Exception(signed_url_resp.error.message)
 
-        signed_url = signed_url_resp["signedURL"]
+        signed_url = signed_url_resp.data.get("signedURL")
 
         insert_response = supabase.table("images").insert({
             "shop_id": shop_id,

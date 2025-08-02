@@ -56,10 +56,10 @@ def generate_signed_url(bucket: str, path: str, expires_in: int = 3600):
             path=path,
             expires_in=expires_in
         )
-        if hasattr(result, "error") and result.error:
+        if result.error:
             raise Exception(result.error.message)
-
-        signed_url = result.get("signedURL")
+        
+        signed_url = result.data.get("signedURL")
         logger.info(f"[Supabase] 🔗 Signed URL generated: {signed_url}")
         return signed_url
     except Exception as e:
