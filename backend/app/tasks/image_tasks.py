@@ -1,19 +1,19 @@
 import os
 import requests
 import uuid
-import time
 from app.services.supabase_service import supabase
 from app.logging_config import logger
 from celery import shared_task
 
 MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
 MAKEIT3D_BASE_URL = "https://api.makeit3d.io"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
 
 headers = {
     "X-API-Key": MAKEIT3D_API_KEY,
     "Content-Type": "application/json",
 }
-
 
 @shared_task
 def submit_job_task(image_id: str, operation: str, image_url: str):
@@ -53,7 +53,6 @@ def submit_job_task(image_id: str, operation: str, image_url: str):
         logger.error(f"Failed to submit job: {e}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
-
 @shared_task
 def poll_all_processing_images():
     logger.info("Polling all processing images...")
@@ -65,7 +64,7 @@ def poll_all_processing_images():
         for img in images:
             task_id = img.get("external_task_id")
             image_id = img.get("id")
-            shop_id = img.get("shop")  # assuming shop is stored in 'shop' column
+            shop_id = img.get("shop_id")
 
             try:
                 res = requests.get(f"{MAKEIT3D_BASE_URL}/tasks/{task_id}/status", headers=headers)
@@ -76,47 +75,54 @@ def poll_all_processing_images():
                     output_url = status_data.get("output_url")
 
                     if output_url:
-                        logger.info(f"Downloading processed image for image_id={image_id}")
-                        image_data = requests.get(output_url).content
+                        try:
+                            image_res = requests.get(output_url)
+                            image_res.raise_for_status()
 
-                        # Create path and upload
-                        filename = f"{uuid.uuid4()}.png"
-                        storage_path = f"{shop_id}/processed/{filename}"
-                        upload_res = supabase.storage.from_("makeit3d-private").upload(
-                            storage_path, image_data, {
-                                "content-type": "image/png",
-                                "x-upsert": "true"
-                            }
-                        )
+                            # Reupload to Supabase processed folder
+                            filename = f"{uuid.uuid4()}.png"
+                            storage_path = f"{shop_id}/processed/{filename}"
 
-                        if not upload_res or getattr(upload_res, "status_code", 500) >= 400:
-                            raise Exception(f"Failed to upload to Supabase Storage: {upload_res}")
+                            upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                                path=storage_path,
+                                file=image_res.content,
+                                file_options={"content-type": "image/png"},
+                                upsert=False,
+                            )
 
-                        # Generate signed URL
-                        signed_res = supabase.storage.from_("makeit3d-private").create_signed_url(
-                            storage_path, expires_in=3600 * 24  # 24 hours
-                        )
-                        signed_url = signed_res.get("signedURL")
-                        if not signed_url:
-                            raise Exception("Failed to generate signed URL")
+                            if upload_res.get("error"):
+                                raise Exception(upload_res["error"]["message"])
 
-                        # Update DB
-                        supabase.table("images").update({
-                            "status": "completed",
-                            "processed_url": signed_url
-                        }).eq("id", image_id).execute()
+                            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                                path=storage_path,
+                                expires_in=60 * 60 * 24 * 7  # 7 days
+                            )
 
-                        logger.info(f"Image {image_id} processed and signed URL stored")
+                            if signed_res.get("error"):
+                                raise Exception(signed_res["error"]["message"])
+
+                            signed_processed_url = signed_res["signedURL"]
+
+                            supabase.table("images").update({
+                                "status": "completed",
+                                "processed_url": signed_processed_url
+                            }).eq("id", image_id).execute()
+
+                            logger.info(f"Image {image_id} completed and updated.")
+
+                        except Exception as file_err:
+                            logger.error(f"Download or upload error for image {image_id}: {file_err}")
+                            supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
                     else:
-                        logger.warning(f"No output_url returned for image {image_id}")
+                        logger.warning(f"No output_url found for image {image_id}")
 
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-                    logger.warning(f"Image {image_id} failed in MakeIt3D")
+                    logger.warning(f"Image {image_id} failed processing.")
 
             except Exception as poll_error:
-                logger.error(f"Error processing task_id {task_id}: {poll_error}")
+                logger.error(f"Polling failed for image {image_id}: {poll_error}")
 
     except Exception as fetch_error:
         logger.error(f"Failed to fetch processing images: {fetch_error}")
