@@ -7,7 +7,6 @@ from celery import shared_task
 
 MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
 MAKEIT3D_BASE_URL = "https://api.makeit3d.io"
-SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
 
 headers = {
@@ -16,35 +15,32 @@ headers = {
 }
 
 @shared_task
-def submit_job_task(image_id: str, operation: str, image_url: str):
+def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
     logger.info(f"Submitting job for image_id: {image_id}, operation: {operation}")
 
-    payload = {"image_url": image_url}
-    endpoint = ""
+    endpoint = {
+        "remove-background": "/generate/remove-background",
+        "upscale": "/generate/upscale",
+        "downscale": "/generate/downscale"
+    }.get(operation)
 
-    if operation == "remove-background":
-        endpoint = "/generate/remove-background"
-    elif operation == "upscale":
-        endpoint = "/generate/upscale"
-    elif operation == "downscale":
-        endpoint = "/generate/downscale"
-    else:
+    if not endpoint:
         logger.error(f"Invalid operation: {operation}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
         return
 
     try:
-        res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json=payload, headers=headers)
+        res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json={"image_url": image_url}, headers=headers)
         res.raise_for_status()
-        data = res.json()
-        task_id = data.get("task_id")
+        task_id = res.json().get("task_id")
 
         if not task_id:
             raise ValueError("task_id not found in response")
 
         supabase.table("images").update({
             "status": "processing",
-            "external_task_id": task_id
+            "external_task_id": task_id,
+            "shop_folder": shop
         }).eq("id", image_id).execute()
 
         logger.info(f"Submitted job successfully for image {image_id} with task_id {task_id}")
@@ -52,6 +48,7 @@ def submit_job_task(image_id: str, operation: str, image_url: str):
     except Exception as e:
         logger.error(f"Failed to submit job: {e}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+
 
 @shared_task
 def poll_all_processing_images():
@@ -64,7 +61,7 @@ def poll_all_processing_images():
         for img in images:
             task_id = img.get("external_task_id")
             image_id = img.get("id")
-            shop_id = img.get("shop_id")
+            shop_folder = img.get("shop_folder")
 
             try:
                 res = requests.get(f"{MAKEIT3D_BASE_URL}/tasks/{task_id}/status", headers=headers)
@@ -79,9 +76,8 @@ def poll_all_processing_images():
                             image_res = requests.get(output_url)
                             image_res.raise_for_status()
 
-                            # Reupload to Supabase processed folder
                             filename = f"{uuid.uuid4()}.png"
-                            storage_path = f"{shop_id}/processed/{filename}"
+                            storage_path = f"{shop_folder}/processed/{filename}"
 
                             upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
                                 path=storage_path,
@@ -95,27 +91,25 @@ def poll_all_processing_images():
 
                             signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
                                 path=storage_path,
-                                expires_in=60 * 60 * 24 * 7  # 7 days
+                                expires_in=60 * 60 * 24 * 7
                             )
 
                             if signed_res.get("error"):
                                 raise Exception(signed_res["error"]["message"])
 
-                            signed_processed_url = signed_res["signedURL"]
-
                             supabase.table("images").update({
                                 "status": "completed",
-                                "processed_url": signed_processed_url
+                                "processed_url": signed_res["signedURL"]
                             }).eq("id", image_id).execute()
 
-                            logger.info(f"Image {image_id} completed and updated.")
+                            logger.info(f"Image {image_id} completed and uploaded to {storage_path}")
 
                         except Exception as file_err:
-                            logger.error(f"Download or upload error for image {image_id}: {file_err}")
+                            logger.error(f"Upload error for image {image_id}: {file_err}")
                             supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
                     else:
-                        logger.warning(f"No output_url found for image {image_id}")
+                        logger.warning(f"No output_url found for task {task_id}")
 
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()

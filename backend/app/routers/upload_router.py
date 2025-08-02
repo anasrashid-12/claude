@@ -53,7 +53,6 @@ async def upload_image(
 
         signed_url = signed_url_resp["signedURL"]
 
-        # Insert to Supabase DB
         insert_response = supabase.table("images").insert({
             "shop_id": shop_id,
             "original_url": signed_url,
@@ -63,8 +62,7 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # Start async processing
-        submit_job_task.delay(image_id=image_id, operation=operation, image_url=signed_url)
+        submit_job_task.delay(image_id=image_id, operation=operation, image_url=signed_url, shop=shop)
 
         return JSONResponse(content={"id": image_id, "status": "queued"}, status_code=202)
 
