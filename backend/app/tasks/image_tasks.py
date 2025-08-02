@@ -80,16 +80,21 @@ def poll_all_processing_images():
                             filename = f"{uuid.uuid4()}.png"
                             storage_path = f"{shop_folder}/processed/{filename}"
 
-                            supabase.storage.from_(SUPABASE_BUCKET).upload(
+                            upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
                                 path=storage_path,
                                 file=image_res.content,
                                 file_options={"content-type": "image/png"},
                             )
 
-                            signed_url = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                            if upload_res.get("error"):
+                                raise Exception(upload_res["error"]["message"])
+
+                            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
                                 path=storage_path,
                                 expires_in=60 * 60 * 24 * 7
-                            ).signed_url
+                            )
+
+                            signed_url = signed_res.get("signedURL")
 
                             supabase.table("images").update({
                                 "status": "completed",
