@@ -14,6 +14,7 @@ headers = {
     "Content-Type": "application/json",
 }
 
+
 @shared_task
 def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
     logger.info(f"Submitting job for image_id: {image_id}, operation: {operation}")
@@ -83,7 +84,6 @@ def poll_all_processing_images():
                                 path=storage_path,
                                 file=image_res.content,
                                 file_options={"content-type": "image/png"},
-                                upsert=False,
                             )
 
                             if upload_res.get("error"):
@@ -102,18 +102,15 @@ def poll_all_processing_images():
                                 "processed_url": signed_res["signedURL"]
                             }).eq("id", image_id).execute()
 
-                            logger.info(f"Image {image_id} completed and uploaded to {storage_path}")
+                            logger.info(f"Image {image_id} processed and saved to: {storage_path}")
 
                         except Exception as file_err:
                             logger.error(f"Upload error for image {image_id}: {file_err}")
                             supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
-                    else:
-                        logger.warning(f"No output_url found for task {task_id}")
-
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-                    logger.warning(f"Image {image_id} failed processing.")
+                    logger.warning(f"Image {image_id} processing failed.")
 
             except Exception as poll_error:
                 logger.error(f"Polling failed for image {image_id}: {poll_error}")

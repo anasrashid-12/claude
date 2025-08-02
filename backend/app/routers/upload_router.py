@@ -11,6 +11,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 JWT_SECRET = os.getenv("JWT_SECRET")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
 
+
 @upload_router.post("/upload")
 async def upload_image(
     request: Request,
@@ -38,14 +39,13 @@ async def upload_image(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
-            upsert=False,
         )
 
         if upload_response.get("error"):
             raise Exception(upload_response["error"]["message"])
 
         signed_url_resp = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-            path=path, expires_in=60 * 60 * 24 * 7  # 7 days
+            path=path, expires_in=60 * 60 * 24 * 7
         )
 
         if signed_url_resp.get("error"):
@@ -57,7 +57,8 @@ async def upload_image(
             "shop_id": shop_id,
             "original_url": signed_url,
             "status": "pending",
-            "operation": operation
+            "operation": operation,
+            "shop_folder": shop
         }).execute()
 
         image_id = insert_response.data[0]["id"]

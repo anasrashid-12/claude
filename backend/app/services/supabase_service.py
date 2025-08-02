@@ -37,8 +37,7 @@ def upload_to_storage(bucket: str, path: str, file_bytes: bytes, content_type: s
         result = supabase.storage.from_(bucket).upload(
             path=path,
             file=file_bytes,
-            file_options={"content-type": content_type},
-            upsert=True
+            file_options={"content-type": content_type}
         )
         if hasattr(result, "error") and result.error:
             raise Exception(result.error.message)
