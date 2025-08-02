@@ -25,7 +25,8 @@ auth_router = APIRouter()
 # ──────────────────────🔑 JWT Token ──────────────────────
 def create_jwt(shop: str):
     return jwt.encode({
-        "shop": shop,
+        "sub": shop,             # 👈 Required for Supabase auth.uid()
+        "shop": shop,            # 👈 Used in RLS policies
         "exp": int(time.time()) + 86400,
     }, JWT_SECRET, algorithm="HS256")
 
