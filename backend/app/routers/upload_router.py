@@ -27,14 +27,15 @@ async def upload_image(request: Request, file: UploadFile = File(...), operation
         filename = f"{uuid.uuid4()}.png"
         file_content = await file.read()
 
-        res = supabase.storage.from_(YOUR_BUCKET).upload(
+        upload_response = supabase.storage.from_(YOUR_BUCKET).upload(
             f"{shop}/{filename}", file_content, {"content-type": "image/png"}
         )
-        if res.get("error"):
-            raise HTTPException(status_code=500, detail=res["error"]["message"])
 
-        public_url_res = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
-        image_url = public_url_res.get("publicUrl")
+        if upload_response.error:
+            raise HTTPException(status_code=500, detail=upload_response.error.message)
+
+        public_url_response = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
+        image_url = public_url_response.get("publicUrl")
 
         if not image_url:
             raise HTTPException(status_code=500, detail="Failed to get public URL")

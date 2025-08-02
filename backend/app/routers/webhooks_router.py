@@ -10,12 +10,21 @@ webhook_router = APIRouter()
 SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_API_SECRET")
 
 def verify_webhook_hmac(body: bytes, hmac_header: str) -> bool:
-    digest = hmac.new(SHOPIFY_WEBHOOK_SECRET.encode('utf-8'), body, hashlib.sha256).digest()
+    """
+    Verifies the HMAC from Shopify webhook header.
+    """
+    digest = hmac.new(SHOPIFY_WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256).digest()
     calculated_hmac = base64.b64encode(digest).decode()
-    return hmac.compare_digest(calculated_hmac, hmac_header)
+    return hmac.compare_digest(calculated_hmac, hmac_header or "")
 
 @webhook_router.post("/webhooks/uninstall")
 async def handle_uninstall(request: Request):
+    """
+    Shopify uninstall webhook handler:
+    - Verifies HMAC
+    - Deletes all shop-related files from Supabase storage
+    - Removes shop and image records from Supabase DB
+    """
     try:
         body = await request.body()
         hmac_header = request.headers.get("X-Shopify-Hmac-Sha256")
@@ -26,36 +35,33 @@ async def handle_uninstall(request: Request):
 
         payload = await request.json()
         shop = payload.get("myshopify_domain")
-        logger.info(f"[Webhook] Received uninstall webhook from {shop}")
 
-        # 1. Fetch image filenames from DB for this shop
-        images_res = supabase.table("images").select("filename").eq("shop", shop).execute()
-        filenames = [row["filename"] for row in images_res.data]
+        if not shop:
+            raise HTTPException(status_code=400, detail="Missing shop domain in webhook payload")
 
-        # 2. Delete files from storage
-        if filenames:
-            delete_response = supabase.storage.from_("makeit3d-public").remove(filenames)
-            if delete_response.get("error"):
-                logger.error(f"[Storage] Failed to delete files: {delete_response['error']}")
-            else:
-                logger.info(f"[Storage] ✅ Deleted {len(filenames)} files from storage")
+        logger.info(f"[Webhook] 🔔 Received uninstall webhook from {shop}")
 
-        # 3. Delete all images from DB
-        db_delete_response = supabase.table("images").delete().eq("shop", shop).execute()
-        logger.info(f"[Webhook] Deleted {len(db_delete_response.data)} image records from DB")
+        # Delete image files from Supabase Storage
+        await delete_images_from_storage(shop)
 
-        # 4. Delete shop record
-        shop_delete_response = supabase.table("shops").delete().eq("shop", shop).execute()
-        logger.info(f"[Webhook] Deleted shop record for {shop}")
+        # Delete image records from Supabase DB
+        img_res = supabase.table("images").delete().eq("shop", shop).execute()
+        logger.info(f"[Webhook] 🗑️ Deleted {len(img_res.data)} image records from DB")
 
-        return {"message": "Uninstall cleanup completed"}
+        # Delete shop record
+        shop_res = supabase.table("shops").delete().eq("shop", shop).execute()
+        logger.info(f"[Webhook] 🧹 Deleted shop record for {shop}")
+
+        return {"message": f"Uninstall cleanup completed for {shop}"}
 
     except Exception as e:
-        logger.error(f"[Webhook] Error handling uninstall webhook: {e}")
+        logger.error(f"[Webhook] ❌ Error handling uninstall webhook: {e}")
         raise HTTPException(status_code=500, detail="Uninstall webhook failed")
 
-
 async def delete_images_from_storage(shop: str):
+    """
+    Deletes all images in Supabase Storage for the given shop.
+    """
     try:
         bucket = "makeit3d-public"
         list_response = supabase.storage.from_(bucket).list(path=shop)
@@ -69,9 +75,9 @@ async def delete_images_from_storage(shop: str):
         delete_response = supabase.storage.from_(bucket).remove(file_paths)
 
         if delete_response.get("error"):
-            logger.error(f"[Storage] Failed to delete files: {delete_response['error']}")
+            logger.error(f"[Storage] ❌ Failed to delete files: {delete_response['error']}")
         else:
-            logger.info(f"[Storage] Deleted {len(file_paths)} files for shop {shop}")
+            logger.info(f"[Storage] ✅ Deleted {len(file_paths)} files for shop {shop}")
 
     except Exception as e:
-        logger.error(f"[Storage] Error deleting files from storage: {e}")
+        logger.error(f"[Storage] ⚠️ Error deleting files from storage: {e}")
