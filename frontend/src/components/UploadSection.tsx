@@ -1,3 +1,4 @@
+// UploadSection.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -69,7 +70,7 @@ export default function UploadSection() {
     for (const file of files) {
       try {
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('file', file); // ✅ must be 'file' to match FastAPI
         formData.append('operation', selectedOption);
 
         const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
@@ -79,18 +80,9 @@ export default function UploadSection() {
         });
 
         if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
-        const { filename } = await uploadRes.json();
+        const data = await uploadRes.json();
 
-        const processRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/process`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename, operation: selectedOption }),
-        });
-
-        if (!processRes.ok) throw new Error(`Processing failed (${processRes.status})`);
-
-        toast.success(`✅ ${file.name} uploaded & processing started`);
+        toast.success(`✅ ${file.name} uploaded & processing started (ID: ${data.id})`);
         successCount += 1;
       } catch (err) {
         console.error(err);
@@ -102,7 +94,7 @@ export default function UploadSection() {
     clearAll();
 
     if (successCount > 0) {
-      toast.success(`🎉 Successfully uploaded ${successCount} image${successCount > 1 ? 's' : ''}`);
+      toast.success(`🎉 Uploaded ${successCount} image${successCount > 1 ? 's' : ''}`);
     }
   };
 

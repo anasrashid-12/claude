@@ -10,7 +10,6 @@ upload_router = APIRouter()
 
 YOUR_BUCKET = "makeit3d-public"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-
 JWT_SECRET = os.getenv("JWT_SECRET")
 
 @upload_router.post("/upload")
@@ -22,14 +21,15 @@ async def upload_image(request: Request, file: UploadFile = File(...), operation
 
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         shop = payload.get("shop")
-
         if not shop:
             raise HTTPException(status_code=401, detail="Invalid token")
 
         filename = f"{uuid.uuid4()}.png"
         file_content = await file.read()
 
-        res = supabase.storage.from_(YOUR_BUCKET).upload(f"{shop}/{filename}", file_content, {"content-type": "image/png"})
+        res = supabase.storage.from_(YOUR_BUCKET).upload(
+            f"{shop}/{filename}", file_content, {"content-type": "image/png"}
+        )
         if res.get("error"):
             raise HTTPException(status_code=500, detail=res["error"]["message"])
 
