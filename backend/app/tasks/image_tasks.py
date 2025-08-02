@@ -1,5 +1,6 @@
 import os
 import requests
+import uuid
 import time
 from app.services.supabase_service import supabase
 from app.logging_config import logger
@@ -64,6 +65,7 @@ def poll_all_processing_images():
         for img in images:
             task_id = img.get("external_task_id")
             image_id = img.get("id")
+            shop_id = img.get("shop")  # assuming shop is stored in 'shop' column
 
             try:
                 res = requests.get(f"{MAKEIT3D_BASE_URL}/tasks/{task_id}/status", headers=headers)
@@ -74,21 +76,47 @@ def poll_all_processing_images():
                     output_url = status_data.get("output_url")
 
                     if output_url:
+                        logger.info(f"Downloading processed image for image_id={image_id}")
+                        image_data = requests.get(output_url).content
+
+                        # Create path and upload
+                        filename = f"{uuid.uuid4()}.png"
+                        storage_path = f"{shop_id}/processed/{filename}"
+                        upload_res = supabase.storage.from_("makeit3d-private").upload(
+                            storage_path, image_data, {
+                                "content-type": "image/png",
+                                "x-upsert": "true"
+                            }
+                        )
+
+                        if not upload_res or getattr(upload_res, "status_code", 500) >= 400:
+                            raise Exception(f"Failed to upload to Supabase Storage: {upload_res}")
+
+                        # Generate signed URL
+                        signed_res = supabase.storage.from_("makeit3d-private").create_signed_url(
+                            storage_path, expires_in=3600 * 24  # 24 hours
+                        )
+                        signed_url = signed_res.get("signedURL")
+                        if not signed_url:
+                            raise Exception("Failed to generate signed URL")
+
+                        # Update DB
                         supabase.table("images").update({
                             "status": "completed",
-                            "processed_url": output_url
+                            "processed_url": signed_url
                         }).eq("id", image_id).execute()
 
-                        logger.info(f"Image {image_id} completed and updated.")
+                        logger.info(f"Image {image_id} processed and signed URL stored")
+
                     else:
-                        logger.warning(f"No output_url found for image {image_id}")
+                        logger.warning(f"No output_url returned for image {image_id}")
 
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-                    logger.warning(f"Image {image_id} failed processing.")
+                    logger.warning(f"Image {image_id} failed in MakeIt3D")
 
             except Exception as poll_error:
-                logger.error(f"Polling failed for image {image_id}: {poll_error}")
+                logger.error(f"Error processing task_id {task_id}: {poll_error}")
 
     except Exception as fetch_error:
         logger.error(f"Failed to fetch processing images: {fetch_error}")

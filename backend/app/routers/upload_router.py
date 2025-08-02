@@ -5,11 +5,11 @@ from app.tasks.image_tasks import submit_job_task
 import uuid
 import os
 import jwt
+from datetime import timedelta
 
 upload_router = APIRouter()
 
-YOUR_BUCKET = "makeit3d-public"
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+YOUR_BUCKET = "makeit3d-private"
 JWT_SECRET = os.getenv("JWT_SECRET")
 
 @upload_router.post("/upload")
@@ -25,39 +25,40 @@ async def upload_image(request: Request, file: UploadFile = File(...), operation
             raise HTTPException(status_code=401, detail="Invalid token")
 
         filename = f"{uuid.uuid4()}.png"
+        path = f"{shop}/{filename}"  # Per-shop folder
         file_content = await file.read()
 
-        # Upload to Supabase
-        upload_res = supabase.storage.from_(YOUR_BUCKET).upload(
-            f"{shop}/{filename}", file_content, {"content-type": "image/png"}
-        )
-
+        # Upload to private bucket
+        upload_res = supabase.storage.from_(YOUR_BUCKET).upload(path, file_content, {
+            "content-type": "image/png",
+            "x-upsert": "true"
+        })
         if not upload_res or getattr(upload_res, "status_code", 500) >= 400:
+            logger.error(f"[Upload] Failed upload: {upload_res}")
             raise HTTPException(status_code=500, detail="Supabase upload failed")
 
-        # Get public URL
-        public_url_res = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
-        image_url = public_url_res.get("publicUrl")
+        # Create signed URL (valid for 6 hours)
+        signed_url_res = supabase.storage.from_(YOUR_BUCKET).create_signed_url(path, expires_in=6 * 3600)
+        signed_url = signed_url_res.get("signedURL")
+        if not signed_url:
+            logger.error(f"[Signed URL] Failed to generate signed URL: {signed_url_res}")
+            raise HTTPException(status_code=500, detail="Signed URL generation failed")
 
-        if not image_url:
-            raise HTTPException(status_code=500, detail="Failed to get public URL")
-
-        # Insert image into DB
         image_data = {
             "shop": shop,
             "status": "queued",
-            "original_url": image_url,
+            "filename": path,
+            "original_url": signed_url,
             "operation": operation,
         }
 
         result = supabase.table("images").insert(image_data).execute()
         image_id = result.data[0]["id"]
 
-        # Queue processing task
-        submit_job_task.delay(image_id, operation, image_url)
+        submit_job_task.delay(image_id, operation, signed_url)
 
         return {"message": "Image uploaded and processing started", "id": image_id}
 
     except Exception as e:
-        logger.error(f"Upload failed: {e}")
+        logger.error(f"Upload failed: {type(e).__name__} - {str(e)}")
         raise HTTPException(status_code=500, detail="Upload failed")
