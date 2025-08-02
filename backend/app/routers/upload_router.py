@@ -27,19 +27,22 @@ async def upload_image(request: Request, file: UploadFile = File(...), operation
         filename = f"{uuid.uuid4()}.png"
         file_content = await file.read()
 
-        upload_response = supabase.storage.from_(YOUR_BUCKET).upload(
+        # Upload to Supabase
+        upload_res = supabase.storage.from_(YOUR_BUCKET).upload(
             f"{shop}/{filename}", file_content, {"content-type": "image/png"}
         )
 
-        if upload_response.error:
-            raise HTTPException(status_code=500, detail=upload_response.error.message)
+        if not upload_res or getattr(upload_res, "status_code", 500) >= 400:
+            raise HTTPException(status_code=500, detail="Supabase upload failed")
 
-        public_url_response = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
-        image_url = public_url_response.get("publicUrl")
+        # Get public URL
+        public_url_res = supabase.storage.from_(YOUR_BUCKET).get_public_url(f"{shop}/{filename}")
+        image_url = public_url_res.get("publicUrl")
 
         if not image_url:
             raise HTTPException(status_code=500, detail="Failed to get public URL")
 
+        # Insert image into DB
         image_data = {
             "shop": shop,
             "status": "queued",
@@ -50,6 +53,7 @@ async def upload_image(request: Request, file: UploadFile = File(...), operation
         result = supabase.table("images").insert(image_data).execute()
         image_id = result.data[0]["id"]
 
+        # Queue processing task
         submit_job_task.delay(image_id, operation, image_url)
 
         return {"message": "Image uploaded and processing started", "id": image_id}
