@@ -30,7 +30,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!shop) return;
-
+  
     (async () => {
       try {
         const { data, error: fetchError } = await supabase
@@ -38,35 +38,45 @@ export default function SettingsPage() {
           .select('*')
           .eq('shop', shop)
           .maybeSingle();
-
+  
         if (fetchError) {
-          setError(fetchError.message);
-        } else if (!data) {
-          const { error: insertError } = await supabase.from('settings').insert({
-            shop,
-            background_removal: true,
-            optimize_images: true,
-            avatar_url: null,
-          });
-          if (insertError) setError('Insert failed: ' + insertError.message);
-          else {
-            setBackgroundRemoval(true);
-            setOptimizeImages(true);
-            setAvatarUrl(null);
+          setError('Fetch error: ' + fetchError.message);
+          setLoading(false);
+          return;
+        }
+  
+        if (!data) {
+          const { data: insertedData, error: insertError } = await supabase
+            .from('settings')
+            .insert({
+              shop,
+              background_removal: true,
+              optimize_images: true,
+              avatar_url: null,
+            })
+            .select()
+            .maybeSingle();
+  
+          if (insertError) {
+            setError('Insert failed: ' + insertError.message);
+          } else if (insertedData) {
+            setBackgroundRemoval(insertedData.background_removal);
+            setOptimizeImages(insertedData.optimize_images);
+            setAvatarUrl(insertedData.avatar_url);
           }
         } else {
-          setBackgroundRemoval(data.background_removal ?? true);
-          setOptimizeImages(data.optimize_images ?? true);
-          setAvatarUrl(data.avatar_url ?? null);
+          setBackgroundRemoval(data.background_removal);
+          setOptimizeImages(data.optimize_images);
+          setAvatarUrl(data.avatar_url);
         }
-      } catch {
-        setError('Failed to fetch settings');
+      } catch (err: any) {
+        setError('Unexpected error: ' + (err?.message || 'Unknown error'));
       } finally {
         setLoading(false);
       }
     })();
   }, [shop]);
-
+  
   const handleSave = async () => {
     if (!shop) return;
     setSaving(true);
