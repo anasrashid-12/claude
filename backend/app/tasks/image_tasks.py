@@ -44,16 +44,16 @@ def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
             "shop_folder": shop
         }).eq("id", image_id).execute()
 
-        logger.info(f"Submitted job successfully for image {image_id} with task_id {task_id}")
+        logger.info(f"✅ Job submitted for image {image_id}, task_id {task_id}")
 
     except Exception as e:
-        logger.error(f"Failed to submit job: {e}")
+        logger.error(f"❌ Failed to submit job: {e}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
 
 @shared_task
 def poll_all_processing_images():
-    logger.info("Polling all processing images...")
+    logger.info("🔄 Polling all processing images...")
 
     try:
         response = supabase.table("images").select("*").eq("status", "processing").execute()
@@ -80,40 +80,34 @@ def poll_all_processing_images():
                             filename = f"{uuid.uuid4()}.png"
                             storage_path = f"{shop_folder}/processed/{filename}"
 
-                            upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                            supabase.storage.from_(SUPABASE_BUCKET).upload(
                                 path=storage_path,
                                 file=image_res.content,
                                 file_options={"content-type": "image/png"},
                             )
 
-                            if upload_res.error:
-                                raise Exception(upload_res.error.message)
-
-                            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                            signed_url = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
                                 path=storage_path,
                                 expires_in=60 * 60 * 24 * 7
-                            )
-
-                            if signed_res.error:
-                                raise Exception(signed_res.error.message)
+                            ).signed_url
 
                             supabase.table("images").update({
                                 "status": "completed",
-                                "processed_url": signed_res.data.get("signedURL")
+                                "processed_url": signed_url
                             }).eq("id", image_id).execute()
 
-                            logger.info(f"Image {image_id} processed and saved to: {storage_path}")
+                            logger.info(f"✅ Image {image_id} processed and saved to: {storage_path}")
 
                         except Exception as file_err:
-                            logger.error(f"Upload error for image {image_id}: {file_err}")
+                            logger.error(f"❌ Upload error for image {image_id}: {file_err}")
                             supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
 
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-                    logger.warning(f"Image {image_id} processing failed.")
+                    logger.warning(f"⚠️ Image {image_id} processing failed.")
 
             except Exception as poll_error:
-                logger.error(f"Polling failed for image {image_id}: {poll_error}")
+                logger.error(f"❌ Polling failed for image {image_id}: {poll_error}")
 
     except Exception as fetch_error:
-        logger.error(f"Failed to fetch processing images: {fetch_error}")
+        logger.error(f"❌ Failed to fetch processing images: {fetch_error}")

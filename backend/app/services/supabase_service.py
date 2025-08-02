@@ -21,10 +21,6 @@ def save_shop_token(shop: str, access_token: str):
             "access_token": access_token,
         }, on_conflict="shop").execute()
 
-        if response.error:
-            logger.error(f"[Supabase] ❌ Upsert error: {response.error}")
-            raise Exception(response.error.message)
-
         logger.info(f"[Supabase] ✅ Token saved for {shop}")
         return response
     except Exception as e:
@@ -34,14 +30,7 @@ def save_shop_token(shop: str, access_token: str):
 
 def upload_to_storage(bucket: str, path: str, file_bytes: bytes, content_type: str = "image/png"):
     try:
-        result = supabase.storage.from_(bucket).upload(
-            path=path,
-            file=file_bytes,
-            file_options={"content-type": content_type}
-        )
-        if hasattr(result, "error") and result.error:
-            raise Exception(result.error.message)
-
+        result = supabase.storage.from_(bucket).upload(path=path, file=file_bytes, file_options={"content-type": content_type})
         public_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{path}"
         logger.info(f"[Supabase] ✅ File uploaded: {public_url}")
         return public_url
@@ -52,16 +41,8 @@ def upload_to_storage(bucket: str, path: str, file_bytes: bytes, content_type: s
 
 def generate_signed_url(bucket: str, path: str, expires_in: int = 3600):
     try:
-        result = supabase.storage.from_(bucket).create_signed_url(
-            path=path,
-            expires_in=expires_in
-        )
-        if result.error:
-            raise Exception(result.error.message)
-        
-        signed_url = result.data.get("signedURL")
-        logger.info(f"[Supabase] 🔗 Signed URL generated: {signed_url}")
-        return signed_url
+        result = supabase.storage.from_(bucket).create_signed_url(path=path, expires_in=expires_in)
+        return result.signed_url
     except Exception as e:
         logger.error(f"[Supabase] ❌ Failed to generate signed URL: {e}")
         raise

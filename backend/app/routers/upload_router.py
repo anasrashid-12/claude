@@ -35,23 +35,15 @@ async def upload_image(
 
     file_content = await file.read()
     try:
-        upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
 
-        if upload_response.error:
-            raise Exception(upload_response.error.message)
-
-        signed_url_resp = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+        signed_url = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
             path=path, expires_in=60 * 60 * 24 * 7
-        )
-
-        if signed_url_resp.error:
-            raise Exception(signed_url_resp.error.message)
-
-        signed_url = signed_url_resp.data.get("signedURL")
+        ).signed_url
 
         insert_response = supabase.table("images").insert({
             "shop_id": shop_id,
@@ -70,3 +62,4 @@ async def upload_image(
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail="Upload failed")
+
