@@ -1,14 +1,14 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from app.services.supabase_service import supabase
 from app.dependencies.auth import get_current_shop
 from app.logging_config import logger
+from uuid import uuid4
 
-router = APIRouter()
-
+settings_router = APIRouter()
 SETTINGS_TABLE = "settings"
+AVATAR_BUCKET = "avatars"
 
-# ✅ Get current shop settings
-@router.get("/settings")
+@settings_router.get("/settings")
 async def get_settings(shop: str = Depends(get_current_shop)):
     try:
         response = supabase.table(SETTINGS_TABLE).select("*").eq("shop", shop).limit(1).execute()
@@ -19,8 +19,7 @@ async def get_settings(shop: str = Depends(get_current_shop)):
         logger.error(f"GET /settings failed: {e}")
         raise HTTPException(status_code=500, detail="Error fetching settings")
 
-# ✅ Insert or update settings (Upsert)
-@router.post("/settings")
+@settings_router.post("/settings")
 async def upsert_settings(request: Request, shop: str = Depends(get_current_shop)):
     try:
         body = await request.json()
@@ -28,36 +27,54 @@ async def upsert_settings(request: Request, shop: str = Depends(get_current_shop
             "shop": shop,
             "background_removal": body.get("background_removal", False),
             "optimize_images": body.get("optimize_images", False),
-            "avatar_url": body.get("avatar_url", "")
         }
-
         response = supabase.table(SETTINGS_TABLE).upsert(new_data, on_conflict=["shop"]).execute()
         return {"success": True, "data": response.data}
     except Exception as e:
         logger.error(f"POST /settings failed: {e}")
         raise HTTPException(status_code=500, detail="Error saving settings")
 
-# ✅ Update settings by shop (specific fields)
-@router.put("/settings")
-async def update_settings(request: Request, shop: str = Depends(get_current_shop)):
+@settings_router.post("/settings/avatar")
+async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_current_shop)):
     try:
-        body = await request.json()
-        update_data = {
-            k: v for k, v in body.items()
-            if k in ["background_removal", "optimize_images", "avatar_url"]
-        }
-        response = supabase.table(SETTINGS_TABLE).update(update_data).eq("shop", shop).execute()
-        return {"success": True, "data": response.data}
-    except Exception as e:
-        logger.error(f"PUT /settings failed: {e}")
-        raise HTTPException(status_code=500, detail="Error updating settings")
+        contents = await file.read()
+        ext = file.filename.split('.')[-1]
+        avatar_path = f"{shop}/avatar.{ext}"
 
-# ✅ Delete settings for current shop
-@router.delete("/settings")
-async def delete_settings(shop: str = Depends(get_current_shop)):
-    try:
-        supabase.table(SETTINGS_TABLE).delete().eq("shop", shop).execute()
-        return {"deleted": True}
+        upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
+            avatar_path,
+            contents,
+            {"content-type": file.content_type, "upsert": True}
+        )
+        if upload_res.get("error"):
+            raise HTTPException(status_code=500, detail="Failed to upload avatar")
+
+        # Save only path in DB
+        update_res = supabase.table(SETTINGS_TABLE).update({
+            "avatar_path": avatar_path
+        }).eq("shop", shop).execute()
+        if update_res.get("error"):
+            raise HTTPException(status_code=500, detail="Failed to update avatar path")
+
+        # Generate signed URL
+        signed_url_data = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(
+            avatar_path, 3600 * 24 * 7
+        )
+        return {"url": signed_url_data["signedURL"]}
+
     except Exception as e:
-        logger.error(f"DELETE /settings failed: {e}")
-        raise HTTPException(status_code=500, detail="Error deleting settings")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@settings_router.get("/settings/avatar/refresh")
+async def refresh_avatar_url(shop: str = Depends(get_current_shop)):
+    try:
+        res = supabase.table(SETTINGS_TABLE).select("avatar_path").eq("shop", shop).limit(1).execute()
+        avatar_path = res.data[0].get("avatar_path")
+        if not avatar_path:
+            raise HTTPException(status_code=404, detail="Avatar not found")
+
+        signed = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(avatar_path, 3600 * 24 * 7)
+        return {"url": signed["signedURL"]}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

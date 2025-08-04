@@ -13,7 +13,6 @@ import {
   Divider,
 } from '@shopify/polaris';
 import useShop from '@/hooks/useShop';
-import { getSupabase } from '../../../../utils/supabase/supabaseClient';
 
 export default function SettingsPage() {
   const { shop, loading: shopLoading } = useShop();
@@ -25,8 +24,6 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toastActive, setToastActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const supabase = getSupabase();
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
@@ -79,28 +76,27 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !shop) return;
-
-    const file = e.target.files[0];
-    const filePath = `${shop}/avatar-${Date.now()}.${file.name.split('.').pop()}`;
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      const res = await fetch(`${API_BASE_URL}/settings/avatar`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
 
-      if (uploadError) {
-        setError(uploadError.message);
-        return;
-      }
+      if (!res.ok) throw new Error('Avatar upload failed');
 
-      const publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath).data.publicUrl;
-      setAvatarUrl(publicUrl);
+      const data = await res.json();
+      setAvatarUrl(data.url);
       setToastActive(true);
-    } catch {
-      setError('Avatar upload failed');
+    } catch (err: any) {
+      setError(err?.message || 'Avatar upload failed');
     }
   };
 
@@ -147,7 +143,7 @@ export default function SettingsPage() {
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleAvatarChange}
+                  onChange={handleAvatarUpload}
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}

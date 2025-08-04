@@ -3,55 +3,13 @@
 import { Bell, CircleHelp, Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import useShop from '@/hooks/useShop';
-import { useEffect, useState } from 'react';
+import useAvatar from '@/hooks/useAvatar';
 import Image from 'next/image';
-import { getSupabase } from '../../utils/supabase/supabaseClient';
 
 export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const { shop } = useShop();
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const supabase = getSupabase();
-
-  useEffect(() => {
-    if (!shop) return;
-
-    const fetchAvatar = async () => {
-      setLoading(true);
-      const { data } = await supabase
-        .from('settings')
-        .select('avatar_url')
-        .eq('shop', shop)
-        .single();
-
-      if (data?.avatar_url) setAvatar(data.avatar_url);
-      setLoading(false);
-    };
-
-    fetchAvatar();
-
-    const channel = supabase
-      .channel(`realtime:settings-${shop}`)
-      .on(
-        'postgres_changes' as any,
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'settings',
-          filter: `shop=eq.${shop}`,
-        },
-        (payload: any) => {
-          const updated = payload.new as { avatar_url?: string };
-          if (updated?.avatar_url) setAvatar(updated.avatar_url);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [shop]);
+  const { avatarUrl, loading } = useAvatar(); // ✅ FIXED destructuring
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -90,7 +48,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
             <div className="w-full h-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded-full" />
           ) : (
             <Image
-              src={avatar || 'https://avatars.githubusercontent.com/u/1?v=4'}
+              src={avatarUrl || 'https://avatars.githubusercontent.com/u/1?v=4'}
               alt="User Avatar"
               width={32}
               height={32}

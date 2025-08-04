@@ -13,7 +13,7 @@ from app.routers.image_router import image_router
 from app.routers.me_router import me_router
 from app.routers.webhooks_router import webhook_router
 from app.routers.fileserve_router import fileserve_router
-from app.routers.settings_router import router
+from app.routers.settings_router import settings_router
 
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.middleware.csp_middleware import CSPMiddleware
@@ -84,7 +84,7 @@ def create_app():
     app.include_router(me_router)
     app.include_router(webhook_router)
     app.include_router(fileserve_router)
-    app.include_router(router)
+    app.include_router(settings_router)
 
     logger.info("✅ Backend initialized.")
     return app
