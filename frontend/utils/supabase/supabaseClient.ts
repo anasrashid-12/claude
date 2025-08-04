@@ -11,11 +11,10 @@ export const getSupabase = (): SupabaseClient => {
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     global: {
       fetch: (url, options = {}) => {
-        const token = getCookie('session'); 
+        const token = getCookie('session');
 
         const headers = {
           'Content-Type': 'application/json',
-          apikey: supabaseAnonKey,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         };
@@ -28,3 +27,4 @@ export const getSupabase = (): SupabaseClient => {
     },
   });
 };
+
