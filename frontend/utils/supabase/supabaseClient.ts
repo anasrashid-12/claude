@@ -13,9 +13,9 @@ export const getSupabase = (): SupabaseClient => {
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     global: {
       fetch: (url, options = {}) => {
-        // ✅ Manually inject Authorization header
         const headers = {
-          ...(options.headers || {}),
+          ...options.headers,
+          apikey: supabaseAnonKey, // ✅ required
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
