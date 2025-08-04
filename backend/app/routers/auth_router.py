@@ -25,8 +25,9 @@ auth_router = APIRouter()
 # ──────────────────────🔑 JWT Token ──────────────────────
 def create_jwt(shop: str):
     return jwt.encode({
-        "sub": shop,             # 👈 Required for Supabase auth.uid()
-        "shop": shop,            # 👈 Used in RLS policies
+        "sub": shop,            
+        "shop": shop, 
+        "role": "authenticated",           
         "exp": int(time.time()) + 86400,
     }, JWT_SECRET, algorithm="HS256")
 
@@ -126,9 +127,8 @@ async def auth_callback(request: Request):
             value=jwt_token,
             httponly=True,
             secure=True,
-            samesite="None",
-            max_age=86400,
-            path="/",
+            samesite="None", 
+            path="/"
         )
 
         # 🍪 Readable cookies (not httponly)

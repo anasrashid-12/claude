@@ -8,13 +8,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const getSupabase = (): SupabaseClient => {
-  const token = getCookie('session');
-
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     global: {
       fetch: (url, options = {}) => {
+        const token = getCookie('session'); 
+
         const headers = {
-          'Content-Type': 'application/json', // ✅ fixed here
+          'Content-Type': 'application/json',
           apikey: supabaseAnonKey,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
