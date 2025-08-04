@@ -1,4 +1,3 @@
-// utils/supabase/client.ts
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
@@ -8,21 +7,19 @@ import { getCookie } from 'cookies-next';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Singleton instance
 let supabase: SupabaseClient | null = null;
 
 export const getSupabase = (): SupabaseClient => {
-  const token = getCookie('session') as string;
+  const token = getCookie('session'); // 🍪 read from cookie
 
-  if (!supabase) {
-    supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      }
-    });
-  }
-
-  return supabase;
+  // 💡 Re-create on each call to make sure fresh token is used
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+    },
+  });
 };
