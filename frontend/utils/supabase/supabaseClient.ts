@@ -10,14 +10,18 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const getSupabase = (): SupabaseClient => {
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     global: {
-      fetch: (url, options = {}) => {
+      fetch: async (url, options: RequestInit = {}) => {
         const token = getCookie('session');
 
-        const headers = {
+        const headers: HeadersInit = {
           'Content-Type': 'application/json',
+          apikey: supabaseAnonKey, // ✅ always include apikey
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...options.headers,
+          ...(options.headers || {}),
         };
+
+        // Optional: log for debugging (remove in production)
+        console.log('Supabase fetch with headers:', headers);
 
         return fetch(url, {
           ...options,
@@ -27,4 +31,3 @@ export const getSupabase = (): SupabaseClient => {
     },
   });
 };
-
