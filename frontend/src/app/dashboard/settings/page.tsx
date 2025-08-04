@@ -13,7 +13,7 @@ import {
   Divider,
 } from '@shopify/polaris';
 import useShop from '@/hooks/useShop';
-import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ use shared client
+import { getSupabase } from '../../../../utils/supabase/supabaseClient';
 
 export default function SettingsPage() {
   const { shop, loading: shopLoading } = useShop();
@@ -26,71 +26,49 @@ export default function SettingsPage() {
   const [toastActive, setToastActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const supabase = getSupabase(); // ✅ reuse shared instance
+  const supabase = getSupabase();
 
   useEffect(() => {
     if (!shop) return;
-  
-    (async () => {
+
+    const fetchSettings = async () => {
+      setLoading(true);
       try {
-        const { data, error: fetchError } = await supabase
-          .from('settings')
-          .select('*')
-          .eq('shop', shop)
-          .maybeSingle();
-  
-        if (fetchError) {
-          setError('Fetch error: ' + fetchError.message);
-          setLoading(false);
-          return;
-        }
-  
-        if (!data) {
-          const { data: insertedData, error: insertError } = await supabase
-            .from('settings')
-            .insert({
-              shop,
-              background_removal: true,
-              optimize_images: true,
-              avatar_url: null,
-            })
-            .select()
-            .maybeSingle();
-  
-          if (insertError) {
-            setError('Insert failed: ' + insertError.message);
-          } else if (insertedData) {
-            setBackgroundRemoval(insertedData.background_removal);
-            setOptimizeImages(insertedData.optimize_images);
-            setAvatarUrl(insertedData.avatar_url);
-          }
-        } else {
+        const res = await fetch('/api/settings');
+        if (!res.ok) throw new Error('Failed to fetch settings');
+        const data = await res.json();
+        if (data) {
           setBackgroundRemoval(data.background_removal);
           setOptimizeImages(data.optimize_images);
           setAvatarUrl(data.avatar_url);
         }
       } catch (err: any) {
-        setError('Unexpected error: ' + (err?.message || 'Unknown error'));
+        setError(err?.message || 'Unexpected error');
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchSettings();
   }, [shop]);
-  
+
   const handleSave = async () => {
-    if (!shop) return;
     setSaving(true);
     try {
-      const { error: upsertError } = await supabase.from('settings').upsert({
-        shop,
-        background_removal: backgroundRemoval,
-        optimize_images: optimizeImages,
-        avatar_url: avatarUrl,
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          background_removal: backgroundRemoval,
+          optimize_images: optimizeImages,
+          avatar_url: avatarUrl,
+        }),
       });
-      if (upsertError) setError(upsertError.message);
-      else setToastActive(true);
-    } catch {
-      setError('Failed to save settings');
+
+      if (!res.ok) throw new Error('Failed to save settings');
+      setToastActive(true);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -177,8 +155,8 @@ export default function SettingsPage() {
             <div className="flex justify-end mt-6">
               <button
                 onClick={handleSave}
-                disabled={!shop || saving}
-                className={`bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-5 rounded transition ${(!shop || saving) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={saving}
+                className={`bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-5 rounded transition ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {saving ? 'Saving...' : 'Save Settings'}
               </button>
