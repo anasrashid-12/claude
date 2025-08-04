@@ -28,13 +28,17 @@ export default function SettingsPage() {
 
   const supabase = getSupabase();
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
   useEffect(() => {
     if (!shop) return;
 
     const fetchSettings = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/settings');
+        const res = await fetch(`${API_BASE_URL}/settings`, {
+          credentials: 'include',
+        });
         if (!res.ok) throw new Error('Failed to fetch settings');
         const data = await res.json();
         if (data) {
@@ -55,9 +59,10 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', {
+      const res = await fetch(`${API_BASE_URL}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           background_removal: backgroundRemoval,
           optimize_images: optimizeImages,
@@ -73,6 +78,7 @@ export default function SettingsPage() {
       setSaving(false);
     }
   };
+
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !shop) return;
