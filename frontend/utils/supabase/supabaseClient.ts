@@ -14,9 +14,10 @@ export const getSupabase = (): SupabaseClient => {
     global: {
       fetch: (url, options = {}) => {
         const headers = {
-          ...options.headers,
-          apikey: supabaseAnonKey, // ✅ required
+          'Content-Type': 'application/json', // ✅ fixed here
+          apikey: supabaseAnonKey,
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...options.headers,
         };
 
         return fetch(url, {
