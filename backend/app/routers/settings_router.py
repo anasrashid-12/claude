@@ -41,10 +41,14 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
         ext = file.filename.split('.')[-1]
         avatar_path = f"{shop}/avatar.{ext}"
 
+        # Fix: use "x-upsert" and pass string "true"
         upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
             avatar_path,
             contents,
-            {"content-type": file.content_type, "upsert": True}
+            {
+                "content-type": file.content_type,
+                "x-upsert": "true"
+            }
         )
         if upload_res.get("error"):
             raise HTTPException(status_code=500, detail="Failed to upload avatar")
@@ -64,6 +68,7 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @settings_router.get("/settings/avatar/refresh")
 async def refresh_avatar_url(shop: str = Depends(get_current_shop)):

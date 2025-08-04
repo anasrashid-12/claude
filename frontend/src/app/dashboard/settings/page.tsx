@@ -41,7 +41,7 @@ export default function SettingsPage() {
         if (data) {
           setBackgroundRemoval(data.background_removal);
           setOptimizeImages(data.optimize_images);
-          setAvatarUrl(data.avatar_url);
+          setAvatarUrl(data.avatar_path);
         }
       } catch (err: any) {
         setError(err?.message || 'Unexpected error');
@@ -63,7 +63,7 @@ export default function SettingsPage() {
         body: JSON.stringify({
           background_removal: backgroundRemoval,
           optimize_images: optimizeImages,
-          avatar_url: avatarUrl,
+          avatar_path: avatarUrl,
         }),
       });
 

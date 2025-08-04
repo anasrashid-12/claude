@@ -9,7 +9,7 @@ import Image from 'next/image';
 export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const { shop } = useShop();
-  const { avatarUrl, loading } = useAvatar(); // ✅ FIXED destructuring
+  const { avatarUrl, loading } = useAvatar(); 
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">

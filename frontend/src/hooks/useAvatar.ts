@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import useShop from './useShop';
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 export default function useAvatar() {
   const { shop } = useShop();
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -14,7 +16,7 @@ export default function useAvatar() {
     const fetchSignedUrl = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/settings/avatar/refresh`, {
+        const res = await fetch(`${BACKEND_URL}/settings/avatar/refresh`, {
           credentials: 'include',
         });
         if (!res.ok) return;
@@ -28,9 +30,9 @@ export default function useAvatar() {
     };
 
     fetchSignedUrl();
-    const interval = setInterval(fetchSignedUrl, 1000 * 60 * 5); // every 5 min
+    const interval = setInterval(fetchSignedUrl, 1000 * 60 * 60 * 24 * 6); // every 6 days
     return () => clearInterval(interval);
   }, [shop]);
 
-  return { avatarUrl, loading }; // ✅ return as object
+  return { avatarUrl, loading };
 }
