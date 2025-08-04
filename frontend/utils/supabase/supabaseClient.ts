@@ -7,19 +7,23 @@ import { getCookie } from 'cookies-next';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-let supabase: SupabaseClient | null = null;
-
 export const getSupabase = (): SupabaseClient => {
-  const token = getCookie('session'); // 🍪 read from cookie
+  const token = getCookie('session');
 
-  // 💡 Re-create on each call to make sure fresh token is used
   return createBrowserClient(supabaseUrl, supabaseAnonKey, {
     global: {
-      headers: token
-        ? {
-            Authorization: `Bearer ${token}`,
-          }
-        : {},
+      fetch: (url, options = {}) => {
+        // ✅ Manually inject Authorization header
+        const headers = {
+          ...(options.headers || {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+
+        return fetch(url, {
+          ...options,
+          headers,
+        });
+      },
     },
   });
 };
