@@ -18,7 +18,6 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
 
       <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
-        {shop || ''}
       </div>
 
       <div className="flex items-center gap-3">
