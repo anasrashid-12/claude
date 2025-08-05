@@ -47,7 +47,7 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
         ext = file.filename.split('.')[-1]
         avatar_path = f"{shop}/avatar.{ext}"
 
-        # Upload avatar with x-upsert header
+        # Upload the avatar
         upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
             avatar_path,
             contents,
@@ -57,36 +57,25 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
             }
         )
 
-        # ✅ Check for upload error properly
-        if upload_res.__dict__.get("error"):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to upload avatar: {upload_res.__dict__['error'].message}"
-            )
+        # Check for error attribute on UploadResponse object
+        if getattr(upload_res, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {upload_res.error.message}")
 
-        # Update settings table with avatar path
+        # Update DB with avatar path
         update_res = supabase.table(SETTINGS_TABLE).update({
             "avatar_path": avatar_path
         }).eq("shop", shop).execute()
 
-        if update_res.__dict__.get("error"):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to update avatar path: {update_res.__dict__['error'].message}"
-            )
+        if getattr(update_res, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to update avatar path: {update_res.error.message}")
 
-        # Generate signed URL
-        signed_url_data = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(
-            avatar_path, 3600 * 24 * 7
-        )
+        # Create signed URL (returns dict not object)
+        signed = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(avatar_path, 3600 * 24 * 7)
 
-        if signed_url_data.__dict__.get("error"):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate signed URL: {signed_url_data.__dict__['error'].message}"
-            )
+        if "signedURL" not in signed:
+            raise HTTPException(status_code=500, detail=f"Failed to generate signed URL")
 
-        return {"url": signed_url_data.__dict__["data"]["signedURL"]}
+        return {"url": signed["signedURL"]}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
