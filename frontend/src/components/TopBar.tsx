@@ -13,33 +13,24 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-      {/* Hamburger for mobile */}
       <button onClick={onMenuClick} className="md:hidden text-gray-700 dark:text-white z-50">
         <Menu className="w-6 h-6" />
       </button>
 
-      <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]" />
+      <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
+        {shop || ''}
+      </div>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={toggleTheme}
-          className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
-          title="Toggle Theme"
-        >
+        <button onClick={toggleTheme} className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
           {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
-        <button
-          className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
-          title="Help"
-        >
+        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
           <CircleHelp className="w-5 h-5" />
         </button>
 
-        <button
-          className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
-          title="Notifications"
-        >
+        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
           <Bell className="w-5 h-5" />
         </button>
 

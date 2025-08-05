@@ -13,24 +13,23 @@ export default function useAvatar() {
   useEffect(() => {
     if (!shop) return;
 
-    const fetchSignedUrl = async () => {
+    const fetchAvatar = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${BACKEND_URL}/settings/avatar/refresh`, {
-          credentials: 'include',
-        });
+        const res = await fetch(`${BACKEND_URL}/settings/avatar/refresh`, { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         setAvatarUrl(data.url);
-      } catch (err) {
-        console.error('Failed to refresh avatar URL', err);
+      } catch (e) {
+        console.error('Failed to fetch avatar URL', e);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSignedUrl();
-    const interval = setInterval(fetchSignedUrl, 1000 * 60 * 60 * 24 * 6); // every 6 days
+    fetchAvatar();
+    const interval = setInterval(fetchAvatar, 1000 * 60 * 60 * 24 * 6); // refresh every 6 days
+
     return () => clearInterval(interval);
   }, [shop]);
 
