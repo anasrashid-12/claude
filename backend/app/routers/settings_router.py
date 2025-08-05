@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from app.services.supabase_service import supabase
 from app.dependencies.auth import get_current_shop
 from app.logging_config import logger
-from werkzeug.utils import secure_filename
 
 settings_router = APIRouter()
 SETTINGS_TABLE = "settings"
@@ -56,10 +55,11 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
     try:
         contents = await file.read()
 
-        safe_filename = secure_filename(file.filename)
-        avatar_path = f"{shop}/{safe_filename}"
+        # Force file name: avatars/{shop}/avatar.<ext>
+        ext = file.filename.split(".")[-1]
+        avatar_path = f"{shop}/avatar.{ext}"
 
-        # Upload the avatar
+        # Upload to Supabase Storage (overwrite with upsert)
         upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
             avatar_path,
             contents,
@@ -69,11 +69,10 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
             }
         )
 
-        # Check for error attribute on UploadResponse object
         if getattr(upload_res, "error", None):
             raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {upload_res.error.message}")
 
-        # Update DB with avatar path
+        # Update database with avatar path
         update_res = supabase.table(SETTINGS_TABLE).update({
             "avatar_path": avatar_path
         }).eq("shop", shop).execute()
@@ -81,7 +80,7 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
         if getattr(update_res, "error", None):
             raise HTTPException(status_code=500, detail=f"Failed to update avatar path: {update_res.error.message}")
 
-        # Create signed URL (returns dict not object)
+        # Create signed URL for preview
         signed = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(avatar_path, 3600 * 24 * 7)
 
         if "signedURL" not in signed:
@@ -90,7 +89,8 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
         return {"url": signed["signedURL"]}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"POST /settings/avatar failed: {e}")
+        raise HTTPException(status_code=500, detail="Error uploading avatar")
 
 @settings_router.get("/settings/avatar/refresh")
 async def refresh_avatar_url(shop: str = Depends(get_current_shop)):
