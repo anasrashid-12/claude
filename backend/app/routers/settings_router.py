@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends, UploadFile, File
 from app.services.supabase_service import supabase
 from app.dependencies.auth import get_current_shop
 from app.logging_config import logger
+from werkzeug.utils import secure_filename
 
 settings_router = APIRouter()
 SETTINGS_TABLE = "settings"
@@ -35,6 +36,8 @@ async def upsert_settings(request: Request, shop: str = Depends(get_current_shop
             "background_removal": body.get("background_removal", False),
             "optimize_images": body.get("optimize_images", False),
         }
+        if "avatar_path" in body:
+            new_data["avatar_path"] = body["avatar_path"]
 
         response = supabase.table(SETTINGS_TABLE).upsert(new_data, on_conflict=["shop"]).execute()
 
@@ -52,8 +55,9 @@ async def upsert_settings(request: Request, shop: str = Depends(get_current_shop
 async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_current_shop)):
     try:
         contents = await file.read()
-        ext = file.filename.split('.')[-1]
-        avatar_path = f"{shop}/avatar.{ext}"
+
+        safe_filename = secure_filename(file.filename)
+        avatar_path = f"{shop}/{safe_filename}"
 
         # Upload the avatar
         upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
