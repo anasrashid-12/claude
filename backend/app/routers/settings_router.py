@@ -10,26 +10,22 @@ AVATAR_BUCKET = "avatars"
 @settings_router.get("/settings")
 async def get_settings(shop: str = Depends(get_current_shop)):
     try:
+        logger.info(f"Fetching settings for shop: {shop}")
         response = supabase.table(SETTINGS_TABLE).select("*").eq("shop", shop).limit(1).execute()
+        logger.info(f"Supabase response: {response.data}")
+        
+        data = response.data[0] if isinstance(response.data, list) and response.data else {}
 
-        if response.error:
-            logger.error(f"Supabase error in GET /settings: {response.error}")
-            raise HTTPException(status_code=500, detail="Supabase error fetching settings")
-
-        data = response.data[0] if response.data else {}
-
-        # If avatar_path exists, generate signed URL
         avatar_path = data.get("avatar_path")
         if avatar_path:
             signed = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(avatar_path, 3600 * 24 * 7)
-            if signed.error:
-                logger.warning(f"Signed URL error: {signed.error}")
-            else:
+            if not signed.error:
                 data["avatar_path"] = signed.data.get("signedURL")
 
         return data
     except Exception as e:
-        logger.error(f"GET /settings failed: {e}")
+        import traceback
+        logger.error("GET /settings failed:\n" + traceback.format_exc())
         raise HTTPException(status_code=500, detail="Error fetching settings")
     
 @settings_router.post("/settings")
