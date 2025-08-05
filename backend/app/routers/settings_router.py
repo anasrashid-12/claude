@@ -47,7 +47,7 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
         ext = file.filename.split('.')[-1]
         avatar_path = f"{shop}/avatar.{ext}"
 
-        # Upload file to Supabase storage
+        # Upload avatar with x-upsert header
         upload_res = supabase.storage.from_(AVATAR_BUCKET).upload(
             avatar_path,
             contents,
@@ -57,29 +57,38 @@ async def upload_avatar(file: UploadFile = File(...), shop: str = Depends(get_cu
             }
         )
 
-        if upload_res.error:
-            raise HTTPException(status_code=500, detail=f"Upload error: {upload_res.error.message}")
+        # ✅ Check for upload error properly
+        if upload_res.__dict__.get("error"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to upload avatar: {upload_res.__dict__['error'].message}"
+            )
 
         # Update settings table with avatar path
         update_res = supabase.table(SETTINGS_TABLE).update({
             "avatar_path": avatar_path
         }).eq("shop", shop).execute()
 
-        if update_res.error:
-            raise HTTPException(status_code=500, detail=f"DB update error: {update_res.error.message}")
+        if update_res.__dict__.get("error"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update avatar path: {update_res.__dict__['error'].message}"
+            )
 
         # Generate signed URL
-        signed_url_res = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(
+        signed_url_data = supabase.storage.from_(AVATAR_BUCKET).create_signed_url(
             avatar_path, 3600 * 24 * 7
         )
 
-        if signed_url_res.error:
-            raise HTTPException(status_code=500, detail=f"Signed URL error: {signed_url_res.error.message}")
+        if signed_url_data.__dict__.get("error"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate signed URL: {signed_url_data.__dict__['error'].message}"
+            )
 
-        return {"url": signed_url_res.data.get("signedURL")}
+        return {"url": signed_url_data.__dict__["data"]["signedURL"]}
 
     except Exception as e:
-        logger.error(f"POST /settings/avatar failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @settings_router.get("/settings/avatar/refresh")
