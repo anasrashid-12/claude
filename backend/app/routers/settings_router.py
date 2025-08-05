@@ -38,8 +38,9 @@ async def upsert_settings(request: Request, shop: str = Depends(get_current_shop
 
         response = supabase.table(SETTINGS_TABLE).upsert(new_data, on_conflict=["shop"]).execute()
 
-        if response.error:
-            logger.error(f"Supabase upsert error: {response.error}")
+        # If response is dict-like and error is in it
+        if hasattr(response, "status_code") and response.status_code >= 400:
+            logger.error(f"Supabase upsert failed with status {response.status_code}")
             raise HTTPException(status_code=500, detail="Supabase upsert failed")
 
         return {"success": True, "data": response.data}
