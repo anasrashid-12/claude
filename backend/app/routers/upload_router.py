@@ -1,15 +1,20 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie, Form
-import uuid, os, jwt
+from starlette.responses import JSONResponse
+import uuid
+import os
+import jwt
+import traceback
+from io import BytesIO
+
 from app.logging_config import logger
 from app.services.supabase_service import supabase
 from app.tasks.image_tasks import submit_job_task
-from starlette.responses import JSONResponse
 
 upload_router = APIRouter()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-JWT_SECRET = os.getenv("JWT_SECRET")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
+JWT_SECRET = os.getenv("JWT_SECRET")
 
 
 @upload_router.post("/upload")
@@ -33,19 +38,26 @@ async def upload_image(
     filename = f"{uuid.uuid4()}.png"
     path = f"{shop}/upload/{filename}"
 
-    file_content = await file.read()
     try:
+        file_content = await file.read()
+        logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
+
+        # Upload to Supabase Storage
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
-            file=file_content,
+            file=BytesIO(file_content),
             file_options={"content-type": file.content_type},
         )
 
+        # Generate signed URL
         signed_url_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
             path=path, expires_in=60 * 60 * 24 * 7
         )
         signed_url = signed_url_res.get("signedURL")
+        if not signed_url:
+            raise Exception("Signed URL generation failed")
 
+        # Insert image record
         insert_response = supabase.table("images").insert({
             "shop_id": shop_id,
             "original_url": signed_url,
@@ -54,12 +66,21 @@ async def upload_image(
             "shop_folder": shop
         }).execute()
 
+        if not insert_response.data:
+            raise Exception("Image insert failed in Supabase")
+
         image_id = insert_response.data[0]["id"]
 
-        submit_job_task.delay(image_id=image_id, operation=operation, image_url=signed_url, shop=shop)
+        # Queue job
+        submit_job_task.delay(
+            image_id=image_id,
+            operation=operation,
+            image_url=signed_url,
+            shop=shop
+        )
 
         return JSONResponse(content={"id": image_id, "status": "queued"}, status_code=202)
 
     except Exception as e:
-        logger.error(f"Upload failed: {e}")
+        logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")

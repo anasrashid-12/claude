@@ -11,13 +11,15 @@ logger = logging.getLogger("image_router")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-BUCKET_NAME = "makeit3d-public"
+BUCKET_NAME = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
+
 
 def validate_uuid(id_str: str):
     try:
         return str(uuid.UUID(id_str))
     except Exception:
         return None
+
 
 @image_router.post("/process")
 async def process_image(request: Request, session: str = Cookie(None)):
@@ -39,23 +41,23 @@ async def process_image(request: Request, session: str = Cookie(None)):
     if not filename or not operation:
         raise HTTPException(status_code=400, detail="Missing filename or operation")
 
+    # Generate signed URL for source image
     signed_res = supabase.storage.from_(BUCKET_NAME).create_signed_url(
         path=f"{shop}/upload/{filename}",
-        expires_in=60 * 60 * 24 * 7  # 7 days
+        expires_in=60 * 60 * 24 * 7
     )
-    if not signed_res.get("signedURL"):
+    image_url = signed_res.get("signedURL")
+    if not image_url:
         raise HTTPException(status_code=500, detail="Failed to generate signed URL")
 
-    image_url = signed_res["signedURL"]
-
+    # Fetch image record
     result = supabase.table("images").select("id").eq("shop", shop).eq("filename", filename).single().execute()
-
     if not result.data:
         raise HTTPException(status_code=404, detail="Image not found. Make sure it is uploaded first.")
 
     image_id = result.data["id"]
 
-    # ✅ Now call the new task
+    # Queue the job
     task = submit_job_task.delay(image_id, operation, image_url)
 
     return {
@@ -65,6 +67,7 @@ async def process_image(request: Request, session: str = Cookie(None)):
         "image_id": image_id,
         "image_url": image_url
     }
+
 
 @image_router.get("/status/{image_id}")
 async def get_image_status(image_id: str):
@@ -85,6 +88,7 @@ async def get_image_status(image_id: str):
         "processed_url": result.data.get("processed_url"),
         "error": result.data.get("error_message")
     }
+
 
 @image_router.get("/images")
 async def get_images_by_shop(session: str = Cookie(None)):
