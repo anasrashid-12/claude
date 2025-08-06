@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 import uuid
 from app.services.supabase_service import supabase
@@ -20,11 +21,16 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
 
     # ✅ Generate signed URL fresh
     try:
-        signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-            path=image_path,
-            expires_in=60 * 60 * 24  # 1 day
-        )
-        image_url = signed_res.get("signedURL")
+        for _ in range(3):
+            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                path=image_path,
+                expires_in=60 * 60 * 24
+            )
+            image_url = signed_res.get("signedURL")
+            if image_url:
+                break
+            time.sleep(1)
+
         if not image_url:
             raise Exception("Failed to generate signed URL for image path")
 
