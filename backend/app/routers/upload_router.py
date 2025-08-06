@@ -15,7 +15,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "makeit3d-public")
 JWT_SECRET = os.getenv("JWT_SECRET")
 
-
 @upload_router.post("/upload")
 async def upload_image(
     request: Request,
@@ -65,7 +64,6 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # 📝 Step 2: update to 'queued' after task submission
         submit_job_task.delay(
             image_id=image_id,
             operation=operation,
@@ -82,6 +80,3 @@ async def upload_image(
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")
-
-
-

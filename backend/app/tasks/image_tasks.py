@@ -18,10 +18,8 @@ HEADERS = {
 @shared_task(queue="image_queue")
 def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     logger.info(f"🚀 Starting job for image_id: {image_id}, operation: {operation}")
-    supabase.table("images").update({"status": "processing"}).eq("id", image_id).execute()
 
     try:
-        # ✅ Check if file exists before signed URL generation
         file_found = False
         for attempt in range(5):
             file_list = supabase.storage.from_(SUPABASE_BUCKET).list(path=f"{shop}/upload")
@@ -38,14 +36,14 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         if not file_found:
             raise FileNotFoundError(f"Uploaded file not found in bucket: {image_path}")
 
-        # ✅ Generate signed URL now that file exists
         signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
             path=image_path, expires_in=60 * 60 * 24
         )
         image_url = signed_res.get("signedURL")
-
         if not image_url:
             raise Exception("Signed URL generation failed")
+
+        supabase.table("images").update({"status": "processing"}).eq("id", image_id).execute()
 
     except Exception as sign_err:
         logger.error(f"❌ Signed URL generation failed: {sign_err}")
@@ -57,7 +55,6 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         "upscale": "/generate/upscale",
         "downscale": "/generate/downscale"
     }
-
     endpoint = endpoint_map.get(operation)
     if not endpoint:
         logger.error(f"❌ Invalid operation: {operation}")
@@ -93,7 +90,6 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         res.raise_for_status()
         api_response = res.json()
         task_id = api_response.get("task_id")
-
         if not task_id:
             raise ValueError("No task_id returned from MakeIt3D API")
 
@@ -106,7 +102,6 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
-
 
 @shared_task
 def poll_all_processing_images():
