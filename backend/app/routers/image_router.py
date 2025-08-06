@@ -39,7 +39,14 @@ async def process_image(request: Request, session: str = Cookie(None)):
     if not filename or not operation:
         raise HTTPException(status_code=400, detail="Missing filename or operation")
 
-    image_url = f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET_NAME}/{filename}"
+    signed_res = supabase.storage.from_(BUCKET_NAME).create_signed_url(
+        path=f"{shop}/upload/{filename}",
+        expires_in=60 * 60 * 24 * 7  # 7 days
+    )
+    if not signed_res.get("signedURL"):
+        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
+
+    image_url = signed_res["signedURL"]
 
     result = supabase.table("images").select("id").eq("shop", shop).eq("filename", filename).single().execute()
 
