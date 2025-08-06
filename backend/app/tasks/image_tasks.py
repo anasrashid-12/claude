@@ -15,8 +15,23 @@ HEADERS = {
 }
 
 @shared_task(queue="image_queue")
-def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
+def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     logger.info(f"🚀 Submitting job for image_id: {image_id}, operation: {operation}")
+
+    # ✅ Generate signed URL fresh
+    try:
+        signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+            path=image_path,
+            expires_in=60 * 60 * 24  # 1 day
+        )
+        image_url = signed_res.get("signedURL")
+        if not image_url:
+            raise Exception("Failed to generate signed URL for image path")
+
+    except Exception as sign_err:
+        logger.error(f"❌ Could not generate signed URL: {sign_err}")
+        supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+        return
 
     endpoint_map = {
         "remove-bg": "/generate/remove-background",
@@ -68,7 +83,6 @@ def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-
 
 @shared_task
 def poll_all_processing_images():

@@ -38,29 +38,19 @@ async def upload_image(
     path = f"{shop}/upload/{filename}"
 
     try:
-        # Read file content into bytes
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        # ✅ FIX: Upload using raw bytes, not BytesIO
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
-            file=file_content,  # 👈 pass raw bytes here
+            file=file_content,
             file_options={"content-type": file.content_type},
         )
 
-        # Generate signed URL
-        signed_url_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-            path=path, expires_in=60 * 60 * 24 * 7
-        )
-        signed_url = signed_url_res.get("signedURL")
-        if not signed_url:
-            raise Exception("Signed URL generation failed")
-
-        # Insert image record in DB
+        # ✅ Store only path, not signed URL
         insert_response = supabase.table("images").insert({
             "shop": shop,
-            "original_url": signed_url,
+            "original_path": path,  # <-- store only path
             "status": "pending",
             "operation": operation,
             "filename": file.filename
@@ -71,11 +61,11 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # Queue job to Celery
+        # Queue task with path instead of signed_url
         submit_job_task.delay(
             image_id=image_id,
             operation=operation,
-            image_url=signed_url,
+            image_path=path,
             shop=shop
         )
 
@@ -84,3 +74,4 @@ async def upload_image(
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")
+
