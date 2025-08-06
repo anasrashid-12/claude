@@ -4,6 +4,7 @@ import uuid
 import os
 import jwt
 import traceback
+import asyncio  # ⬅️ for adding delay before triggering the queue
 
 from app.logging_config import logger
 from app.services.supabase_service import supabase
@@ -40,13 +41,16 @@ async def upload_image(
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
 
-        # Insert with status "pending"
+        if upload_result.get("error"):
+            raise Exception(f"Upload failed: {upload_result['error']['message']}")
+
+        # Insert into `images` table with "pending" status
         insert_response = supabase.table("images").insert({
             "shop": shop,
             "original_path": path,
@@ -60,10 +64,14 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # ✅ Now webhook will handle queueing
-        return JSONResponse(content={"id": image_id, "status": "pending"}, status_code=202)
+        logger.info(f"Inserted image {image_id} for shop {shop} → Queuing after delay")
+
+        await asyncio.sleep(2)
+        
+        submit_job_task.delay(image_id, operation, path, shop)
+
+        return JSONResponse(content={"id": image_id, "status": "queued"}, status_code=202)
 
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")
-

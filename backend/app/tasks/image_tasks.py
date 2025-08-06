@@ -23,7 +23,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         file_found = False
         expected_name = image_path.split("/")[-1]
 
-        for attempt in range(5):
+        for attempt in range(10):
             file_list = supabase.storage.from_(SUPABASE_BUCKET).list(path=f"{shop}/upload")
             filenames = [f["name"] for f in file_list if isinstance(f, dict)]
 
@@ -32,7 +32,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
                 break
 
             logger.warning(f"🕐 Waiting for file {expected_name} in Supabase... Attempt {attempt+1}/5")
-            time.sleep(1.5)
+            time.sleep(2)
 
         if not file_found:
             raise FileNotFoundError(f"Uploaded file not found in bucket: {image_path}")
