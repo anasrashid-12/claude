@@ -47,10 +47,9 @@ async def upload_image(
             file_options={"content-type": file.content_type},
         )
 
-        if upload_response.error:
-            raise Exception(upload_response.error.message)
+        if "error" in upload_response:
+            raise Exception(upload_response["error"]["message"])
 
-        # 📝 Step 1: insert as 'pending'
         insert_response = supabase.table("images").insert({
             "shop": shop,
             "original_path": path,
