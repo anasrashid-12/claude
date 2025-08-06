@@ -4,7 +4,6 @@ import uuid
 import os
 import jwt
 import traceback
-from io import BytesIO
 
 from app.logging_config import logger
 from app.services.supabase_service import supabase
@@ -39,13 +38,14 @@ async def upload_image(
     path = f"{shop}/upload/{filename}"
 
     try:
+        # Read file content into bytes
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        # Upload to Supabase Storage
+        # ✅ FIX: Upload using raw bytes, not BytesIO
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
-            file=BytesIO(file_content),
+            file=file_content,  # 👈 pass raw bytes here
             file_options={"content-type": file.content_type},
         )
 
@@ -57,7 +57,7 @@ async def upload_image(
         if not signed_url:
             raise Exception("Signed URL generation failed")
 
-        # Insert image record
+        # Insert image record in DB
         insert_response = supabase.table("images").insert({
             "shop_id": shop_id,
             "original_url": signed_url,
@@ -71,7 +71,7 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # Queue job
+        # Queue job to Celery
         submit_job_task.delay(
             image_id=image_id,
             operation=operation,
