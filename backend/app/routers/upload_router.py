@@ -47,8 +47,8 @@ async def upload_image(
             file_options={"content-type": file.content_type},
         )
 
-        if upload_result.get("error"):
-            raise Exception(f"Upload failed: {upload_result['error']['message']}")
+        if hasattr(upload_result, "error") and upload_result.error:
+            raise Exception(f"Upload failed to Supabase storage: {upload_result.error.message}")
 
         # Insert into `images` table with "pending" status
         insert_response = supabase.table("images").insert({
@@ -67,7 +67,7 @@ async def upload_image(
         logger.info(f"Inserted image {image_id} for shop {shop} → Queuing after delay")
 
         await asyncio.sleep(2)
-        
+
         submit_job_task.delay(image_id, operation, path, shop)
 
         return JSONResponse(content={"id": image_id, "status": "queued"}, status_code=202)
