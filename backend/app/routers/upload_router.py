@@ -66,7 +66,7 @@ async def upload_image(
 
         logger.info(f"Inserted image {image_id} for shop {shop} → Queuing after delay")
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
 
         submit_job_task.delay(image_id, operation, path, shop)
 

@@ -20,22 +20,21 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     logger.info(f"🚀 Starting job for image_id: {image_id}, operation: {operation}")
 
     try:
-        file_found = False
-        expected_name = image_path.split("/")[-1]
-
+        signed_url = None
         for attempt in range(10):
-            file_list = supabase.storage.from_(SUPABASE_BUCKET).list(path=f"{shop}/upload")
-            filenames = [f["name"] for f in file_list if isinstance(f, dict)]
-
-            if expected_name in filenames:
-                file_found = True
+            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                path=image_path, expires_in=60 * 60 * 24
+            )
+            signed_url = signed_res.get("signedURL")
+            
+            if signed_url:
                 break
 
-            logger.warning(f"🕐 Waiting for file {expected_name} in Supabase... Attempt {attempt+1}/5")
-            time.sleep(2)
+            logger.warning(f"🕐 Waiting for file {image_path} to be ready in Supabase... Attempt {attempt+1}/10")
+            time.sleep(5)
 
-        if not file_found:
-            raise FileNotFoundError(f"Uploaded file not found in bucket: {image_path}")
+        if not signed_url:
+            raise FileNotFoundError(f"Uploaded file not found or signed URL failed: {image_path}")
 
         # ✅ File found, mark as queued
         supabase.table("images").update({"status": "queued"}).eq("id", image_id).execute()
