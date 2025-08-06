@@ -21,21 +21,26 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
 
     try:
         file_found = False
+        expected_name = image_path.split("/")[-1]
+
         for attempt in range(5):
             file_list = supabase.storage.from_(SUPABASE_BUCKET).list(path=f"{shop}/upload")
             filenames = [f["name"] for f in file_list if isinstance(f, dict)]
-            expected_name = image_path.split("/")[-1]
 
             if expected_name in filenames:
                 file_found = True
                 break
 
-            logger.warning(f"🕐 Waiting for file {expected_name} to appear in Supabase... Attempt {attempt+1}/5")
+            logger.warning(f"🕐 Waiting for file {expected_name} in Supabase... Attempt {attempt+1}/5")
             time.sleep(1.5)
 
         if not file_found:
             raise FileNotFoundError(f"Uploaded file not found in bucket: {image_path}")
 
+        # ✅ File found, mark as queued
+        supabase.table("images").update({"status": "queued"}).eq("id", image_id).execute()
+
+        # Get signed URL for processing
         signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
             path=image_path, expires_in=60 * 60 * 24
         )
@@ -43,10 +48,11 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         if not image_url:
             raise Exception("Signed URL generation failed")
 
+        # ✅ Mark as processing
         supabase.table("images").update({"status": "processing"}).eq("id", image_id).execute()
 
     except Exception as sign_err:
-        logger.error(f"❌ Signed URL generation failed: {sign_err}")
+        logger.error(f"❌ Pre-processing error: {sign_err}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
         return
 
@@ -90,6 +96,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         res.raise_for_status()
         api_response = res.json()
         task_id = api_response.get("task_id")
+
         if not task_id:
             raise ValueError("No task_id returned from MakeIt3D API")
 
@@ -97,7 +104,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
             "task_id": task_id
         }).eq("id", image_id).execute()
 
-        logger.info(f"✅ Submitted to MakeIt3D. Image ID: {image_id}, Task ID: {task_id}")
+        logger.info(f"✅ Submitted to MakeIt3D: Image ID: {image_id}, Task ID: {task_id}")
 
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
