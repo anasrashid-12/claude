@@ -17,14 +17,17 @@ HEADERS = {
 
 @shared_task(queue="image_queue")
 def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
-    logger.info(f"🚀 Submitting job for image_id: {image_id}, operation: {operation}")
+    logger.info(f"🚀 Starting job for image_id: {image_id}, operation: {operation}")
 
-    # ✅ Generate signed URL fresh
+    # 🔄 Update status to "processing" (since this task is now running)
+    supabase.table("images").update({"status": "processing"}).eq("id", image_id).execute()
+
     try:
+        # Generate signed URL
+        image_url = None
         for _ in range(3):
             signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-                path=image_path,
-                expires_in=60 * 60 * 24
+                path=image_path, expires_in=60 * 60 * 24
             )
             image_url = signed_res.get("signedURL")
             if image_url:
@@ -35,8 +38,8 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
             raise Exception("Failed to generate signed URL for image path")
 
     except Exception as sign_err:
-        logger.error(f"❌ Could not generate signed URL: {sign_err}")
-        supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+        logger.error(f"❌ Signed URL generation failed: {sign_err}")
+        supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
         return
 
     endpoint_map = {
@@ -48,7 +51,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     endpoint = endpoint_map.get(operation)
     if not endpoint:
         logger.error(f"❌ Invalid operation: {operation}")
-        supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+        supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
         return
 
     task_id = f"{operation}-{uuid.uuid4()}"
@@ -58,17 +61,22 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     }
 
     if operation in ["remove-bg", "upscale"]:
-        payload["provider"] = "stability"
-        payload["output_format"] = "png"
-
+        payload.update({
+            "provider": "stability",
+            "output_format": "png"
+        })
         if operation == "upscale":
-            payload["model"] = "fast"
-            payload["prompt"] = "high quality detailed image"
+            payload.update({
+                "model": "fast",
+                "prompt": "high quality detailed image"
+            })
 
-    if operation == "downscale":
-        payload["max_size_mb"] = 2.0
-        payload["aspect_ratio_mode"] = "original"
-        payload["output_format"] = "jpeg"
+    elif operation == "downscale":
+        payload.update({
+            "max_size_mb": 2.0,
+            "aspect_ratio_mode": "original",
+            "output_format": "jpeg"
+        })
 
     try:
         res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json=payload, headers=HEADERS)
@@ -77,22 +85,22 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         task_id = api_response.get("task_id")
 
         if not task_id:
-            raise ValueError("No task_id returned in response.")
+            raise ValueError("No task_id returned from MakeIt3D API")
 
         supabase.table("images").update({
-            "status": "processing",
             "task_id": task_id
         }).eq("id", image_id).execute()
 
-        logger.info(f"✅ Job submitted successfully. Image ID: {image_id}, Task ID: {task_id}")
+        logger.info(f"✅ Submitted to MakeIt3D. Image ID: {image_id}, Task ID: {task_id}")
 
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
-        supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+        supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+
 
 @shared_task
 def poll_all_processing_images():
-    logger.info("🔄 Polling all processing images...")
+    logger.info("🔄 Polling all images with status='processing'...")
 
     try:
         response = supabase.table("images").select("*").eq("status", "processing").execute()
@@ -136,22 +144,23 @@ def poll_all_processing_images():
                             signed_url = signed_res.get("signedURL")
 
                             supabase.table("images").update({
-                                "status": "completed",
+                                "status": "processed",
                                 "processed_url": signed_url
                             }).eq("id", image_id).execute()
 
-                            logger.info(f"✅ Image {image_id} processed and saved to: {storage_path}")
+                            logger.info(f"✅ Image {image_id} processed and stored at {storage_path}")
 
                         except Exception as file_err:
-                            logger.error(f"❌ Upload error for image {image_id}: {file_err}")
-                            supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+                            logger.error(f"❌ Error uploading processed image {image_id}: {file_err}")
+                            supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
 
                 elif status_data["status"] == "failed":
-                    supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-                    logger.warning(f"⚠️ Image {image_id} processing failed.")
+                    supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+                    logger.warning(f"⚠️ Processing failed for image {image_id}")
 
             except Exception as poll_error:
-                logger.error(f"❌ Polling failed for image {image_id}: {poll_error}")
+                logger.error(f"❌ Error polling image {image_id}: {poll_error}")
 
     except Exception as fetch_error:
-        logger.error(f"❌ Failed to fetch processing images: {fetch_error}")
+        logger.error(f"❌ Could not fetch processing images: {fetch_error}")
+

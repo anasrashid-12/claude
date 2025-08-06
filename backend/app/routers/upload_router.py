@@ -41,19 +41,22 @@ async def upload_image(
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
 
-        # ✅ Store only path, not signed URL
+        if upload_response.get("error"):
+            raise Exception(upload_response["error"]["message"])
+
+        # 📝 Step 1: insert as 'pending'
         insert_response = supabase.table("images").insert({
             "shop": shop,
-            "original_path": path,  # <-- store only path
+            "original_path": path,
             "status": "pending",
             "operation": operation,
-            "filename": file.filename
+            "filename": file.filename,
         }).execute()
 
         if not insert_response.data:
@@ -61,7 +64,7 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # Queue task with path instead of signed_url
+        # 📝 Step 2: update to 'queued' after task submission
         submit_job_task.delay(
             image_id=image_id,
             operation=operation,
@@ -69,9 +72,15 @@ async def upload_image(
             shop=shop
         )
 
+        supabase.table("images").update({
+            "status": "queued"
+        }).eq("id", image_id).execute()
+
         return JSONResponse(content={"id": image_id, "status": "queued"}, status_code=202)
 
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")
+
+
 
