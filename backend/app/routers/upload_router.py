@@ -59,10 +59,11 @@ async def upload_image(
 
         # Insert image record in DB
         insert_response = supabase.table("images").insert({
-            "shop_id": shop_id,
+            "shop": shop_id,
             "original_url": signed_url,
             "status": "pending",
             "operation": operation,
+            "filename": file.filename
         }).execute()
 
         if not insert_response.data:
