@@ -40,15 +40,11 @@ async def upload_image(
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        try:
-            supabase.storage.from_(SUPABASE_BUCKET).upload(
-                path=path,
-                file=file_content,
-                file_options={"content-type": file.content_type},
-            )
-        except Exception as e:
-            logger.error(f"Upload failed: {e}")
-            raise HTTPException(status_code=500, detail="Upload failed")
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
+            path=path,
+            file=file_content,
+            file_options={"content-type": file.content_type},
+        )
 
         # Insert with status "pending"
         insert_response = supabase.table("images").insert({
@@ -64,17 +60,10 @@ async def upload_image(
 
         image_id = insert_response.data[0]["id"]
 
-        # Queue the job (actual queueing is conditional in the Celery task)
-        submit_job_task.delay(
-            image_id=image_id,
-            operation=operation,
-            image_path=path,
-            shop=shop
-        )
-
-        # ✅ status will be updated to "queued" only after checking existence inside Celery
+        # ✅ Now webhook will handle queueing
         return JSONResponse(content={"id": image_id, "status": "pending"}, status_code=202)
 
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Upload failed")
+

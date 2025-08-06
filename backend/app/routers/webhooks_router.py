@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Request, HTTPException
 from app.services.supabase_service import supabase
 from app.logging_config import logger
+import logging
 import hmac
 import hashlib
 import base64
 import os
+from app.tasks.image_tasks import submit_job_task
 
 webhook_router = APIRouter()
 SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_API_SECRET")
@@ -81,3 +83,33 @@ async def delete_images_from_storage(shop: str):
 
     except Exception as e:
         logger.error(f"[Storage] ⚠️ Error deleting files from storage: {e}")
+
+@webhook_router.post("/webhook/image-upload")
+async def handle_image_upload_webhook(request: Request):
+    payload = await request.json()
+    logging.info(f"📦 Received webhook payload: {payload}")
+
+    image_id = payload.get("record", {}).get("id")
+    if not image_id:
+        return {"status": "missing image_id"}
+
+    try:
+        # Fetch image details from Supabase
+        image_res = supabase.table("images").select("*").eq("id", image_id).single().execute()
+        image = image_res.data
+        if not image:
+            return {"status": "image not found"}
+
+        submit_job_task.delay(
+            image_id=image["id"],
+            operation=image["operation"],
+            image_path=image["original_path"],
+            shop=image["shop"]
+        )
+
+        logging.info(f"🚀 Celery job queued for image_id={image_id}")
+        return {"status": "queued", "image_id": image_id}
+
+    except Exception as e:
+        logging.error(f"❌ Webhook processing failed: {e}")
+        return {"status": "error", "error": str(e)}
