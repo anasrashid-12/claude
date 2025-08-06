@@ -41,14 +41,16 @@ async def upload_image(
         file_content = await file.read()
         logger.info(f"Uploading file for shop {shop}: {filename} → {path}")
 
-        upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=path,
-            file=file_content,
-            file_options={"content-type": file.content_type},
-        )
-
-        if "error" in upload_response:
-            raise Exception(upload_response["error"]["message"])
+        try:
+            upload_response = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                path=path,
+                file=file_content,
+                file_options={"content-type": file.content_type},
+            )
+            logger.info(f"Upload successful: {upload_response}")
+        except Exception as e:
+            logger.error(f"Upload failed: {e}")
+            raise HTTPException(status_code=500, detail="Upload failed")
 
         insert_response = supabase.table("images").insert({
             "shop": shop,
