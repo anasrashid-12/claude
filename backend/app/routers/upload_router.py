@@ -63,7 +63,6 @@ async def upload_image(
             "original_url": signed_url,
             "status": "pending",
             "operation": operation,
-            "shop_folder": shop
         }).execute()
 
         if not insert_response.data:
