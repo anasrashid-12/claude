@@ -14,13 +14,12 @@ headers = {
     "Content-Type": "application/json",
 }
 
-
-@shared_task
+@shared_task(queue="image_queue")
 def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
     logger.info(f"Submitting job for image_id: {image_id}, operation: {operation}")
 
     endpoint = {
-        "remove-background": "/generate/remove-background",
+        "remove-bg": "/generate/remove-background",
         "upscale": "/generate/upscale",
         "downscale": "/generate/downscale"
     }.get(operation)
@@ -40,8 +39,7 @@ def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
 
         supabase.table("images").update({
             "status": "processing",
-            "external_task_id": task_id,
-            "shop_folder": shop
+            "task_id": task_id 
         }).eq("id", image_id).execute()
 
         logger.info(f"✅ Job submitted for image {image_id}, task_id {task_id}")
@@ -49,7 +47,6 @@ def submit_job_task(image_id: str, operation: str, image_url: str, shop: str):
     except Exception as e:
         logger.error(f"❌ Failed to submit job: {e}")
         supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
-
 
 @shared_task
 def poll_all_processing_images():
@@ -60,9 +57,9 @@ def poll_all_processing_images():
         images = response.data or []
 
         for img in images:
-            task_id = img.get("external_task_id")
+            task_id = img.get("task_id")
             image_id = img.get("id")
-            shop_folder = img.get("shop_folder")
+            shop = img.get("shop") 
 
             try:
                 res = requests.get(f"{MAKEIT3D_BASE_URL}/tasks/{task_id}/status", headers=headers)
@@ -78,7 +75,7 @@ def poll_all_processing_images():
                             image_res.raise_for_status()
 
                             filename = f"{uuid.uuid4()}.png"
-                            storage_path = f"{shop_folder}/processed/{filename}"
+                            storage_path = f"{shop}/processed/{filename}"
 
                             upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
                                 path=storage_path,
