@@ -20,29 +20,38 @@ def generate_signed_url(filename: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating signed URL: {str(e)}")
 
-
 @fileserve_router.get("/fileserve/download")
 async def download_image(filename: str = Query(...)):
     try:
+        # ✅ Create signed URL (returns object with `.data` or `.signed_url`)
         signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
             path=filename,
-            expires_in=300
+            expires_in=60 * 60 * 24 * 7  # 7 days
         )
-        if signed.get("error"):
+
+        # ✅ Check for errors properly
+        if hasattr(signed, "error") and signed.error:
+            raise HTTPException(status_code=500, detail=f"Supabase error: {signed.error.message}")
+
+        signed_url = getattr(signed, "signed_url", None) or getattr(signed, "signedURL", None)
+        if not signed_url:
             raise HTTPException(status_code=500, detail="Failed to get signed URL")
 
+        # ✅ Download the file via signed URL
         async with httpx.AsyncClient() as client:
-            resp = await client.get(signed.get("signedURL"))
-            if resp.status_code != 200:
-                raise HTTPException(status_code=404, detail="Image not found")
+            resp = await client.get(signed_url)
 
-            return StreamingResponse(
-                iter([resp.content]),
-                media_type=resp.headers.get('content-type', 'application/octet-stream'),
-                headers={
-                    "Content-Disposition": f'attachment; filename="{filename.split("/")[-1]}"'
-                }
-            )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        return StreamingResponse(
+            iter([resp.content]),
+            media_type=resp.headers.get("content-type", "application/octet-stream"),
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename.split("/")[-1]}"'
+            }
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
+

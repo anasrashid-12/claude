@@ -11,7 +11,7 @@ import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ 
 interface ImageItem {
   id: string;
   image_url: string;
-  processed_url?: string;
+  processed_path?: string;
   status: string;
   error_message?: string;
   filename: string;
@@ -97,11 +97,11 @@ export default function GalleryPage() {
         <div className="mt-6 max-h-[600px] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {processedImages.map((img: ImageItem) => (
-              <Link key={img.id} href={img.processed_url || img.image_url} target="_blank">
+              <Link key={img.id} href={img.processed_path || img.image_url} target="_blank">
                 <div className="rounded-xl border bg-white dark:bg-[#1e293b] p-4 shadow hover:scale-[1.02] transition-transform">
                   <div className="relative w-full h-48 rounded overflow-hidden mb-3">
                     <Image
-                      src={img.processed_url || img.image_url}
+                      src={img.processed_path || img.image_url}
                       alt={`Processed Image ${img.id}`}
                       fill
                       className="object-cover"

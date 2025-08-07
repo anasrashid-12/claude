@@ -2,6 +2,7 @@ import os
 import time
 import requests
 import uuid
+from pathlib import Path
 from app.services.supabase_service import supabase
 from app.logging_config import logger
 from celery import shared_task
@@ -111,7 +112,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     
     poll_all_processing_images.apply_async(countdown=10)
 
-@shared_task(bind=True, max_retries=20, default_retry_delay=10)  # retry every 10s
+@shared_task(bind=True, max_retries=20, default_retry_delay=10)  # Retry every 10s, up to 200s
 def poll_all_processing_images(self):
     logger.info("🔄 Polling all images with status='processing'...")
 
@@ -131,10 +132,13 @@ def poll_all_processing_images(self):
             shop = img.get("shop")
             poll_attempts = img.get("poll_attempts", 0)
 
-            # If already tried 3 times, mark as failed
+            # ⛔ Stop polling after 3 attempts
             if poll_attempts >= 3:
                 logger.warning(f"⛔ Image {image_id} exceeded max retries. Marking as failed.")
-                supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+                supabase.table("images").update({
+                    "status": "failed",
+                    "error_message": "Max polling attempts reached"
+                }).eq("id", image_id).execute()
                 continue
 
             try:
@@ -144,76 +148,77 @@ def poll_all_processing_images(self):
 
                 if status_data["status"] == "complete":
                     asset_url = status_data.get("asset_url")
+                    if not asset_url:
+                        raise Exception("No asset_url found in task response.")
 
-                    if asset_url:
-                        try:
-                            image_res = requests.get(asset_url)
-                            image_res.raise_for_status()
+                    image_res = requests.get(asset_url)
+                    image_res.raise_for_status()
 
-                            filename = f"{uuid.uuid4()}.png"
-                            storage_path = f"{shop}/processed/{filename}"
+                    filename = f"{uuid.uuid4()}.png"
+                    storage_path = f"{shop}/processed/{filename}"
 
-                            upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
-                                path=storage_path,
-                                file=image_res.content,
-                                file_options={"content-type": "image/png"},
-                            )
+                    # Upload to Supabase Storage
+                    upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
+                        path=storage_path,
+                        file=image_res.content,
+                        file_options={"content-type": "image/png"},
+                    )
 
-                            if hasattr(upload_res, "error") and upload_res.error:
-                                raise Exception(f"Upload failed to Supabase storage: {upload_res.error.message}")
+                    if hasattr(upload_res, "error") and upload_res.error:
+                        raise Exception(f"Upload failed: {upload_res.error.message}")
 
-                            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-                                path=storage_path,
-                                expires_in=60 * 60 * 24 * 7
-                            )
+                    # Get signed URL
+                    signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
+                        path=storage_path,
+                        expires_in=60 * 60 * 24 * 7  # 7 days
+                    )
 
-                            signed_url = signed_res.get("signedURL")
+                    signed_url = signed_res.get("signedURL") or signed_res.get("signed_url")
+                    if not signed_url:
+                        raise Exception("Failed to retrieve signed URL")
+                    
+                    processed_filename = Path(storage_path).name
 
-                            supabase.table("images").update({
-                                "status": "processed",
-                                "processed_url": signed_url
-                            }).eq("id", image_id).execute()
+                    # ✅ Update image record
+                    supabase.table("images").update({
+                        "status": "processed",
+                        "processed_path": storage_path,
+                        "filename": processed_filename
+                    }).eq("id", image_id).execute()
 
-                            logger.info(f"✅ Image {image_id} processed and stored.")
-
-                        except Exception as file_err:
-                            logger.error(f"❌ Upload error for image {image_id}: {file_err}")
-                            supabase.table("images").update({
-                                "status": "failed",
-                                "error_message": str(file_err)
-                            }).eq("id", image_id).execute()
+                    logger.info(f"✅ Image {image_id} processed successfully.")
 
                 elif status_data["status"] == "failed":
+                    logger.warning(f"⚠️ Image {image_id} failed during processing.")
                     supabase.table("images").update({
                         "status": "failed",
                         "error_message": "Image failed during processing."
                     }).eq("id", image_id).execute()
-                    logger.warning(f"⚠️ Image {image_id} failed during processing.")
 
                 else:
-                    # Still processing: increment poll_attempts
+                    # Still processing: increment attempts
                     supabase.table("images").update({
                         "poll_attempts": poll_attempts + 1
                     }).eq("id", image_id).execute()
-                    logger.info(f"⏳ Image {image_id} still processing. Attempt {poll_attempts + 1}/3.")
+                    logger.info(f"⏳ Image {image_id} still processing (Attempt {poll_attempts + 1}/3).")
 
             except Exception as poll_error:
-                logger.error(f"❌ Poll error for image {image_id}: {poll_error}")
-                # Increment attempt on error too
+                logger.error(f"❌ Error polling image {image_id}: {poll_error}")
                 supabase.table("images").update({
                     "poll_attempts": poll_attempts + 1,
                     "error_message": str(poll_error)
                 }).eq("id", image_id).execute()
 
-        # 👇 Re-check after this cycle
+        # 👇 If more still processing, retry after delay
         recheck = supabase.table("images").select("id").eq("status", "processing").execute()
         if recheck.data:
             logger.info("🔁 Still processing images found. Retrying in 10s...")
             raise self.retry()
 
-        logger.info("✅ All processing complete. Polling task done.")
+        logger.info("✅ All processing complete.")
         return "done"
 
     except Exception as e:
         logger.error(f"❌ Unexpected polling error: {e}")
         raise self.retry(exc=e)
+
