@@ -159,8 +159,8 @@ def poll_all_processing_images(self):
                                 file_options={"content-type": "image/png"},
                             )
 
-                            if upload_res.get("error"):
-                                raise Exception(upload_res["error"]["message"])
+                            if hasattr(upload_res, "error") and upload_res.error:
+                                raise Exception(f"Upload failed to Supabase storage: {upload_res.error.message}")
 
                             signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
                                 path=storage_path,
