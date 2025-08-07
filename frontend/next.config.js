@@ -9,7 +9,7 @@ const nextConfig = {
   images: {
     domains: [
       'ftnkfcuhjmmedmoekvwg.supabase.co',
-      'vsqljedbhbgufysbdics.supabase.co',
+      'yuwuhxwuqlgnlxpzyqqe.supabase.co',
       'avatars.githubusercontent.com',
     ],
   },

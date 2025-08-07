@@ -2,6 +2,7 @@ import os
 import time
 import requests
 import uuid
+from app.tasks.image_tasks import poll_all_processing_images
 from app.services.supabase_service import supabase
 from app.logging_config import logger
 from celery import shared_task
@@ -108,14 +109,22 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+    
+    poll_all_processing_images.apply_async(countdown=10)
 
-@shared_task
-def poll_all_processing_images():
+@shared_task(bind=True, max_retries=20, default_retry_delay=10)  # retry every 10s
+def poll_all_processing_images(self):
     logger.info("🔄 Polling all images with status='processing'...")
 
     try:
         response = supabase.table("images").select("*").eq("status", "processing").execute()
         images = response.data or []
+
+        if not images:
+            logger.info("✅ No images left in processing. Polling complete.")
+            return "done"
+
+        logger.info(f"🧩 Found {len(images)} processing images. Polling each...")
 
         for img in images:
             task_id = img.get("task_id")
@@ -159,19 +168,31 @@ def poll_all_processing_images():
                                 "processed_url": signed_url
                             }).eq("id", image_id).execute()
 
-                            logger.info(f"✅ Image {image_id} processed and stored at {storage_path}")
+                            logger.info(f"✅ Image {image_id} processed and stored.")
 
                         except Exception as file_err:
-                            logger.error(f"❌ Error uploading processed image {image_id}: {file_err}")
+                            logger.error(f"❌ Upload error for image {image_id}: {file_err}")
                             supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
 
                 elif status_data["status"] == "failed":
                     supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
-                    logger.warning(f"⚠️ Processing failed for image {image_id}")
+                    logger.warning(f"⚠️ Image {image_id} failed during processing.")
+
+                else:
+                    logger.info(f"⏳ Image {image_id} still processing...")
 
             except Exception as poll_error:
-                logger.error(f"❌ Error polling image {image_id}: {poll_error}")
+                logger.error(f"❌ Poll error for image {image_id}: {poll_error}")
 
-    except Exception as fetch_error:
-        logger.error(f"❌ Could not fetch processing images: {fetch_error}")
+        # 👇 Re-check after this cycle
+        recheck = supabase.table("images").select("id").eq("status", "processing").execute()
+        if recheck.data:
+            logger.info("🔁 Still processing images found. Retrying in 10s...")
+            raise self.retry()
 
+        logger.info("✅ All processing complete. Polling task done.")
+        return "done"
+
+    except Exception as e:
+        logger.error(f"❌ Unexpected polling error: {e}")
+        raise self.retry(exc=e)
