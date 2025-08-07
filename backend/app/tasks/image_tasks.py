@@ -129,6 +129,13 @@ def poll_all_processing_images(self):
             task_id = img.get("task_id")
             image_id = img.get("id")
             shop = img.get("shop")
+            poll_attempts = img.get("poll_attempts", 0)
+
+            # If already tried 3 times, mark as failed
+            if poll_attempts >= 3:
+                logger.warning(f"⛔ Image {image_id} exceeded max retries. Marking as failed.")
+                supabase.table("images").update({"status": "failed"}).eq("id", image_id).execute()
+                continue
 
             try:
                 res = requests.get(f"{MAKEIT3D_BASE_URL}/tasks/{task_id}/status", headers=HEADERS)
@@ -171,17 +178,32 @@ def poll_all_processing_images(self):
 
                         except Exception as file_err:
                             logger.error(f"❌ Upload error for image {image_id}: {file_err}")
-                            supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+                            supabase.table("images").update({
+                                "status": "failed",
+                                "error_message": str(file_err)
+                            }).eq("id", image_id).execute()
 
                 elif status_data["status"] == "failed":
-                    supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+                    supabase.table("images").update({
+                        "status": "failed",
+                        "error_message": "Image failed during processing."
+                    }).eq("id", image_id).execute()
                     logger.warning(f"⚠️ Image {image_id} failed during processing.")
 
                 else:
-                    logger.info(f"⏳ Image {image_id} still processing...")
+                    # Still processing: increment poll_attempts
+                    supabase.table("images").update({
+                        "poll_attempts": poll_attempts + 1
+                    }).eq("id", image_id).execute()
+                    logger.info(f"⏳ Image {image_id} still processing. Attempt {poll_attempts + 1}/3.")
 
             except Exception as poll_error:
                 logger.error(f"❌ Poll error for image {image_id}: {poll_error}")
+                # Increment attempt on error too
+                supabase.table("images").update({
+                    "poll_attempts": poll_attempts + 1,
+                    "error_message": str(poll_error)
+                }).eq("id", image_id).execute()
 
         # 👇 Re-check after this cycle
         recheck = supabase.table("images").select("id").eq("status", "processing").execute()
