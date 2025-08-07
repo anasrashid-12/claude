@@ -2,7 +2,6 @@ import os
 import time
 import requests
 import uuid
-from app.tasks.image_tasks import poll_all_processing_images
 from app.services.supabase_service import supabase
 from app.logging_config import logger
 from celery import shared_task
