@@ -41,7 +41,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
 
         # Get signed URL for processing
         signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-            path=image_path, expires_in=60 * 60 * 24
+            path=image_path, expires_in=60 * 60 * 24 * 7
         )
         image_url = signed_res.get("signedURL")
         if not image_url:
