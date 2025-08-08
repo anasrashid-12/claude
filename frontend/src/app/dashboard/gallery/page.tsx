@@ -12,7 +12,7 @@ interface ImageItem {
   id: string;
   original_path: string;
   processed_path?: string;
-  status: string;
+  status: 'pending' | 'processing' | 'processed' | 'completed' | 'failed' | 'queued';
   error_message?: string;
   filename: string;
 }
@@ -31,10 +31,11 @@ export default function GalleryPage() {
 
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
+  // fetch signed URLs for processed images
   useEffect(() => {
-    if (!data?.images) return;
-
     const fetchSignedUrls = async () => {
+      if (!data?.images) return;
+
       const paths = data.images
         .filter((img: ImageItem) => img.processed_path && !signedUrls[img.processed_path])
         .map((img: ImageItem) => img.processed_path!);
@@ -66,6 +67,7 @@ export default function GalleryPage() {
     fetchSignedUrls();
   }, [data?.images, signedUrls]);
 
+  // subscribe to real-time updates from Supabase
   useEffect(() => {
     if (!shop) return;
 
@@ -130,7 +132,7 @@ export default function GalleryPage() {
       ) : (
         <div className="mt-6 max-h-[600px] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {processedImages.map((img: ImageItem) => {
+            {processedImages.map((img) => {
               const previewUrl = img.processed_path ? signedUrls[img.processed_path] : '';
 
               return (

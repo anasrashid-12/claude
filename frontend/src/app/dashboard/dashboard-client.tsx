@@ -6,13 +6,6 @@ import DashboardHeader from '@/components/DashboardHeader';
 import StatsGrid from '@/components/StatsGrid';
 import RecentImportsTable from '@/components/RecentImportsTable';
 import ComingSoonFeatures from '@/components/ComingSoonFeatures';
-import { getSupabase } from '../../../utils/supabase/supabaseClient';
-
-interface ImageEntry {
-  processed_path: string | null;
-  status: string;
-  created_at: string;
-}
 
 export default function DashboardClient() {
   const { shop, loading: shopLoading } = useShop();
@@ -23,7 +16,7 @@ export default function DashboardClient() {
     completed: 0,
   });
   const [recent, setRecent] = useState<
-    { url: string; product: string; status: string }[]
+    { url: string; operation: string; status: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
 

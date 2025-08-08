@@ -2,7 +2,7 @@
 
 type ImportItem = {
   url: string;
-  product: string;
+  operation: string; 
   status: string;
 };
 
@@ -20,7 +20,7 @@ export default function RecentImportsTable({ items }: { items: ImportItem[] }) {
           <thead className="text-left text-gray-500 dark:text-gray-400">
             <tr>
               <th className="py-2 pr-4">URL</th>
-              <th className="py-2 pr-4">Product</th>
+              <th className="py-2 pr-4">Operation</th>
               <th className="py-2">Status</th>
             </tr>
           </thead>
@@ -32,7 +32,7 @@ export default function RecentImportsTable({ items }: { items: ImportItem[] }) {
                     {item.url}
                   </a>
                 </td>
-                <td className="py-2 pr-4">{item.product}</td>
+                <td className="py-2 pr-4">{item.operation}</td>
                 <td className="py-2">
                   {item.status === 'Complete' ? (
                     <span className="text-green-600 dark:text-green-400">✅ Complete</span>

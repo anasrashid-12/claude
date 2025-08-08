@@ -7,11 +7,14 @@ import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ 
 
 interface ImageRecord {
   id: string;
-  image_url: string;
-  processed_url: string | null;
+  original_path: string;
+  processed_path: string | null;
   status: string;
   error_message?: string;
+  operation?: string;
+  filename: string;
 }
+
 
 export default function QueuePage() {
   const { shop, loading: shopLoading } = useShop();
@@ -131,7 +134,7 @@ export default function QueuePage() {
                 <BlockStack gap="100">
                   <div>
                     <Text as="p" tone="subdued">Original Image:</Text>
-                    <Thumbnail size="large" source={img.image_url} alt={`Original ${img.id}`} />
+                    <Thumbnail size="large" source={img.original_path} alt={`Original ${img.id}`} />
                   </div>
                   {['failed', 'error'].includes(img.status) && (
                     <Text tone="critical" as="p">
