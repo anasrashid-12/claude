@@ -21,11 +21,11 @@ def generate_signed_url(filename: str):
         raise HTTPException(status_code=500, detail=f"Error generating signed URL: {str(e)}")
 
 @fileserve_router.get("/fileserve/download")
-async def download_image(filename: str = Query(...)):
+async def download_image(path: str = Query(...)):
     try:
         # ✅ Create signed URL (returns object with `.data` or `.signed_url`)
         signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
-            path=filename,
+            path=path,
             expires_in=60 * 60 * 24 * 7  # 7 days
         )
 
@@ -48,7 +48,7 @@ async def download_image(filename: str = Query(...)):
             iter([resp.content]),
             media_type=resp.headers.get("content-type", "application/octet-stream"),
             headers={
-                "Content-Disposition": f'attachment; filename="{filename.split("/")[-1]}"'
+                "Content-Disposition": f'attachment; filename="{path.split("/")[-1]}"'
             }
         )
 

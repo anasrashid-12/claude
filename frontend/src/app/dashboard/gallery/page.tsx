@@ -52,11 +52,11 @@ export default function GalleryPage() {
     };
   }, [shop, mutate, supabase]); // ✅ include supabase in deps
 
-  const handleDownload = (filename: string) => {
-    const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/download?filename=${encodeURIComponent(filename)}`;
+  const handleDownload = (path: string) => {
+    const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/download?path=${encodeURIComponent(path)}`;
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', filename.split('/').pop()!);
+    link.setAttribute('download', path.split('/').pop()!);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -115,7 +115,7 @@ export default function GalleryPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        handleDownload(img.filename);
+                        handleDownload(img.processed_path || img.filename);
                       }}
                       className="text-blue-500 hover:underline font-medium"
                     >
