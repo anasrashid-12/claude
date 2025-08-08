@@ -1,57 +1,57 @@
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from app.services.supabase_service import supabase
 import httpx
+import logging
 
 fileserve_router = APIRouter()
+logger = logging.getLogger("fileserve_router")
 
 BUCKET_NAME = "makeit3d-public"
 
-@fileserve_router.get("/fileserve/signed-url/{filename:path}")
-def generate_signed_url(filename: str):
+def get_signed_url(path: str, expires_in: int = 60 * 60 * 24 * 7) -> str:
     try:
-        signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
-            path=filename,
-            expires_in=3600
+        result = supabase.storage.from_(BUCKET_NAME).create_signed_url(
+            path=path,
+            expires_in=expires_in
         )
-        if signed.get("error"):
+        signed_url = result.get("signedURL") or result.get("signed_url")
+        if not signed_url:
+            logger.warning("Signed URL not found in response")
             raise HTTPException(status_code=500, detail="Failed to generate signed URL")
-        return { "signed_url": signed.get("signedURL") }
+        return signed_url
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating signed URL: {str(e)}")
+        logger.warning(f"Signed URL generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Signed URL error: {str(e)}")
+
+
+@fileserve_router.get("/fileserve/signed-url/{path:path}")
+def generate_signed_url(path: str):
+    signed_url = get_signed_url(path)
+    return {"signed_url": signed_url}
+
 
 @fileserve_router.get("/fileserve/download")
 async def download_image(path: str = Query(...)):
     try:
-        # ✅ Create signed URL (returns object with `.data` or `.signed_url`)
-        signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
-            path=path,
-            expires_in=60 * 60 * 24 * 7  # 7 days
-        )
+        signed_url = get_signed_url(path)
 
-        # ✅ Check for errors properly
-        if hasattr(signed, "error") and signed.error:
-            raise HTTPException(status_code=500, detail=f"Supabase error: {signed.error.message}")
-
-        signed_url = getattr(signed, "signed_url", None) or getattr(signed, "signedURL", None)
-        if not signed_url:
-            raise HTTPException(status_code=500, detail="Failed to get signed URL")
-
-        # ✅ Download the file via signed URL
         async with httpx.AsyncClient() as client:
             resp = await client.get(signed_url)
 
         if resp.status_code != 200:
+            logger.warning(f"Supabase file fetch failed: {resp.status_code}")
             raise HTTPException(status_code=404, detail="Image not found")
 
+        filename = path.split("/")[-1]
         return StreamingResponse(
             iter([resp.content]),
             media_type=resp.headers.get("content-type", "application/octet-stream"),
             headers={
-                "Content-Disposition": f'attachment; filename="{path.split("/")[-1]}"'
+                "Content-Disposition": f'attachment; filename="{filename}"'
             }
         )
 
     except Exception as e:
+        logger.warning(f"Download failed: {e}")
         raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
-

@@ -2,11 +2,11 @@
 
 import useSWR from 'swr';
 import useShop from '@/hooks/useShop';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
-import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ Using shared client
+import { getSupabase } from '../../../../utils/supabase/supabaseClient';
 
 interface ImageItem {
   id: string;
@@ -22,13 +22,49 @@ const fetcher = (url: string) =>
 
 export default function GalleryPage() {
   const { shop, loading: shopLoading } = useShop();
-  const supabase = getSupabase(); // ✅ Reuse shared instance
+  const supabase = getSupabase();
 
   const { data, error, isLoading, mutate } = useSWR(
     shop ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/images` : null,
     fetcher,
     { refreshInterval: 5000 }
   );
+
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!shop || !data?.images) return;
+
+    const fetchSignedUrls = async () => {
+      const updates: Record<string, string> = {};
+
+      await Promise.all(
+        data.images.map(async (img: ImageItem) => {
+          const path = img.processed_path;
+          if (path && !signedUrls[path]) {
+            try {
+              const res = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/signed-url/${encodeURIComponent(path)}`,
+                { credentials: 'include' }
+              );
+              const json = await res.json();
+              if (res.ok && json.signed_url) {
+                updates[path] = json.signed_url;
+              }
+            } catch (err) {
+              console.warn('Signed URL fetch failed:', err);
+            }
+          }
+        })
+      );
+
+      if (Object.keys(updates).length > 0) {
+        setSignedUrls((prev) => ({ ...prev, ...updates }));
+      }
+    };
+
+    fetchSignedUrls();
+  }, [shop, data?.images, signedUrls]);
 
   useEffect(() => {
     if (!shop) return;
@@ -50,7 +86,7 @@ export default function GalleryPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [shop, mutate, supabase]); // ✅ include supabase in deps
+  }, [shop, mutate, supabase]);
 
   const handleDownload = (path: string) => {
     const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/download?path=${encodeURIComponent(path)}`;
@@ -96,35 +132,46 @@ export default function GalleryPage() {
       ) : (
         <div className="mt-6 max-h-[600px] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {processedImages.map((img: ImageItem) => (
-              <Link key={img.id} href={img.processed_path || img.image_url} target="_blank">
-                <div className="rounded-xl border bg-white dark:bg-[#1e293b] p-4 shadow hover:scale-[1.02] transition-transform">
-                  <div className="relative w-full h-48 rounded overflow-hidden mb-3">
-                    <Image
-                      src={img.processed_path || img.image_url}
-                      alt={`Processed Image ${img.id}`}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      priority
-                      unoptimized
-                    />
+            {processedImages.map((img: ImageItem) => {
+              const signedUrl = img.processed_path ? signedUrls[img.processed_path] : null;
+              const previewUrl = signedUrl || img.image_url;
+
+              return (
+                <Link key={img.id} href={previewUrl} target="_blank">
+                  <div className="rounded-xl border bg-white dark:bg-[#1e293b] p-4 shadow hover:scale-[1.02] transition-transform">
+                    <div className="relative w-full h-48 rounded overflow-hidden mb-3">
+                      {previewUrl ? (
+                        <Image
+                          src={previewUrl}
+                          alt={`Processed Image ${img.id}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          priority
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-sm text-gray-400">
+                          Preview unavailable
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <p>Status: <span className="text-green-600 font-medium">✅ Done</span></p>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDownload(img.processed_path || img.filename);
+                        }}
+                        className="text-blue-500 hover:underline font-medium"
+                      >
+                        ⬇️ Download Image
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-sm space-y-1">
-                    <p>Status: <span className="text-green-600 font-medium">✅ Done</span></p>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handleDownload(img.processed_path || img.filename);
-                      }}
-                      className="text-blue-500 hover:underline font-medium"
-                    >
-                      ⬇️ Download Image
-                    </button>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
