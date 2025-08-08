@@ -9,8 +9,7 @@ import ComingSoonFeatures from '@/components/ComingSoonFeatures';
 import { getSupabase } from '../../../utils/supabase/supabaseClient';
 
 interface ImageEntry {
-  image_url: string;
-  processed_url: string | null;
+  processed_path: string | null;
   status: string;
   created_at: string;
 }

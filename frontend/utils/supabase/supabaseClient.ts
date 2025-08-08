@@ -15,13 +15,10 @@ export const getSupabase = (): SupabaseClient => {
 
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
-          apikey: supabaseAnonKey, // ✅ always include apikey
+          apikey: supabaseAnonKey, 
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options.headers || {}),
         };
-
-        // Optional: log for debugging (remove in production)
-        console.log('Supabase fetch with headers:', headers);
 
         return fetch(url, {
           ...options,

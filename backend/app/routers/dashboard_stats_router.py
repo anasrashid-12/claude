@@ -24,7 +24,14 @@ async def get_dashboard_stats(request: Request, session: str = Cookie(None)):
         raise HTTPException(status_code=401, detail="Invalid session")
 
     try:
-        images_res = supabase.table("images").select("*").eq("shop", shop).order("created_at", desc=True).execute()
+        # Get all images for stats
+        images_res = (
+            supabase.table("images")
+            .select("*")
+            .eq("shop", shop)
+            .order("created_at", desc=True)
+            .execute()
+        )
         images = images_res.data or []
 
         total = len(images)
@@ -32,8 +39,17 @@ async def get_dashboard_stats(request: Request, session: str = Cookie(None)):
         failed = sum(1 for img in images if img["status"] in ["error", "failed"])
         completed = sum(1 for img in images if img["status"] == "processed")
 
-        # Limit to 5 recent entries
-        recent_images = images[:5]
+        # Fetch recent processed images only
+        recent_res = (
+            supabase.table("images")
+            .select("*")
+            .eq("shop", shop)
+            .eq("status", "processed")
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        recent_images = recent_res.data or []
 
         recent = []
         for img in recent_images:
@@ -65,7 +81,6 @@ async def get_dashboard_stats(request: Request, session: str = Cookie(None)):
     except Exception as e:
         logger.error(f"Dashboard stats error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard stats")
-
 
 def format_status(status: str) -> str:
     if status in ["processed"]:
