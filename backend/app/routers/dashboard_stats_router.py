@@ -10,7 +10,7 @@ logger = logging.getLogger("dashboard_stats")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 
-@dashboard_stats_router.post("/api/dashboard-stats")
+@dashboard_stats_router.post("/image/dashboard-stats")
 async def get_dashboard_stats(request: Request, session: str = Cookie(None)):
     if not session:
         raise HTTPException(status_code=401, detail="Missing session")
