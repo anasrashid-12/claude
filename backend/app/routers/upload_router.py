@@ -4,8 +4,7 @@ import uuid
 import os
 import jwt
 import traceback
-import asyncio  # ⬅️ for adding delay before triggering the queue
-
+import asyncio 
 from app.logging_config import logger
 from app.services.supabase_service import supabase
 from app.tasks.image_tasks import submit_job_task

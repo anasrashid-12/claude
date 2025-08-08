@@ -1,34 +1,22 @@
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from app.services.supabase_service import supabase
+from app.services.signed_url_util import get_signed_url  
 import httpx
 import logging
 
 fileserve_router = APIRouter()
 logger = logging.getLogger("fileserve_router")
 
-BUCKET_NAME = "makeit3d-public"
-
-def get_signed_url(path: str, expires_in: int = 60 * 60 * 24 * 7) -> str:
-    try:
-        result = supabase.storage.from_(BUCKET_NAME).create_signed_url(
-            path=path,
-            expires_in=expires_in
-        )
-        signed_url = result.get("signedURL") or result.get("signed_url")
-        if not signed_url:
-            logger.warning("Signed URL not found in response")
-            raise HTTPException(status_code=500, detail="Failed to generate signed URL")
-        return signed_url
-    except Exception as e:
-        logger.warning(f"Signed URL generation failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Signed URL error: {str(e)}")
-
 
 @fileserve_router.get("/fileserve/signed-url/{path:path}")
 def generate_signed_url(path: str):
-    signed_url = get_signed_url(path)
-    return {"signed_url": signed_url}
+    try:
+        signed_url = get_signed_url(path)
+        return {"signed_url": signed_url}
+    except Exception as e:
+        logger.warning(f"Failed to generate signed URL: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate signed URL")
 
 
 @fileserve_router.get("/fileserve/download")

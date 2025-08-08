@@ -1,5 +1,3 @@
-# rate_limiter.py (Final Suggested Version)
-
 import redis
 import os
 import logging
@@ -13,27 +11,14 @@ logger = logging.getLogger("rate_limiter")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
-
-redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-
 RATE_LIMIT = int(os.getenv("RATE_LIMIT", "60"))
 WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 
+redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        shop = request.query_params.get("shop")
-
-        if not shop:
-            session = request.cookies.get("session")
-            if session:
-                try:
-                    payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
-                    shop = payload.get("shop")
-                except jwt.ExpiredSignatureError:
-                    logger.warning("JWT expired.")
-                except jwt.DecodeError as e:
-                    logger.warning(f"JWT decode error: {e}")
-
+        shop = self.extract_shop(request)
         if not shop:
             return await call_next(request)
 
@@ -61,3 +46,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 pipe.execute()
         except RedisError as e:
             logger.error(f"Redis pipeline error: {e}")
+
+    def extract_shop(self, request: Request) -> str | None:
+        shop = request.query_params.get("shop")
+        if shop:
+            return shop
+
+        session = request.cookies.get("session")
+        if session:
+            try:
+                payload = jwt.decode(session, JWT_SECRET, algorithms=["HS256"])
+                return payload.get("shop")
+            except jwt.ExpiredSignatureError:
+                logger.warning("JWT expired.")
+            except jwt.DecodeError as e:
+                logger.warning(f"JWT decode error: {e}")
+        return None

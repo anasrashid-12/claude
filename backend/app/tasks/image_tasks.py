@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from app.services.supabase_service import supabase
 from app.logging_config import logger
+from app.services.signed_url_util import get_signed_url
 from celery import shared_task
 
 MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
@@ -16,43 +17,35 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+def wait_for_signed_url(path: str, retries: int = 10, delay: int = 5) -> str:
+    for attempt in range(retries):
+        try:
+            return get_signed_url(path, expires_in=60 * 60 * 24)
+        except Exception:
+            logger.warning(f"🕐 Waiting for file {path} to be ready... Attempt {attempt+1}/{retries}")
+            time.sleep(delay)
+    raise FileNotFoundError(f"File not found or timed out waiting: {path}")
+
+
 @shared_task(queue="image_queue")
 def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     logger.info(f"🚀 Starting job for image_id: {image_id}, operation: {operation}")
 
     try:
-        signed_url = None
-        for attempt in range(10):
-            signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-                path=image_path, expires_in=60 * 60 * 24
-            )
-            signed_url = signed_res.get("signedURL")
-            
-            if signed_url:
-                break
+        # Wait until the file is ready in Supabase
+        signed_url = wait_for_signed_url(image_path)
 
-            logger.warning(f"🕐 Waiting for file {image_path} to be ready in Supabase... Attempt {attempt+1}/10")
-            time.sleep(5)
-
-        if not signed_url:
-            raise FileNotFoundError(f"Uploaded file not found or signed URL failed: {image_path}")
-
-        # ✅ File found, mark as queued
+        # ✅ Mark as queued
         supabase.table("images").update({"status": "queued"}).eq("id", image_id).execute()
 
-        # Get signed URL for processing
-        signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-            path=image_path, expires_in=60 * 60 * 24 * 7
-        )
-        image_url = signed_res.get("signedURL")
-        if not image_url:
-            raise Exception("Signed URL generation failed")
+        # Longer expiry signed URL for processing
+        image_url = get_signed_url(image_path)
 
         # ✅ Mark as processing
         supabase.table("images").update({"status": "processing"}).eq("id", image_id).execute()
 
-    except Exception as sign_err:
-        logger.error(f"❌ Pre-processing error: {sign_err}")
+    except Exception as err:
+        logger.error(f"❌ Pre-processing error: {err}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
         return
 
@@ -95,8 +88,8 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json=payload, headers=HEADERS)
         res.raise_for_status()
         api_response = res.json()
-        task_id = api_response.get("task_id")
 
+        task_id = api_response.get("task_id")
         if not task_id:
             raise ValueError("No task_id returned from MakeIt3D API")
 
@@ -109,10 +102,11 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
-    
+
     poll_all_processing_images.apply_async(countdown=10)
 
-@shared_task(bind=True, max_retries=20, default_retry_delay=10)  # Retry every 10s, up to 200s
+
+@shared_task(bind=True, max_retries=20, default_retry_delay=10)
 def poll_all_processing_images(self):
     logger.info("🔄 Polling all images with status='processing'...")
 
@@ -121,10 +115,8 @@ def poll_all_processing_images(self):
         images = response.data or []
 
         if not images:
-            logger.info("✅ No images left in processing. Polling complete.")
+            logger.info("✅ No images left in processing.")
             return "done"
-
-        logger.info(f"🧩 Found {len(images)} processing images. Polling each...")
 
         for img in images:
             task_id = img.get("task_id")
@@ -132,9 +124,8 @@ def poll_all_processing_images(self):
             shop = img.get("shop")
             poll_attempts = img.get("poll_attempts", 0)
 
-            # ⛔ Stop polling after 3 attempts
             if poll_attempts >= 3:
-                logger.warning(f"⛔ Image {image_id} exceeded max retries. Marking as failed.")
+                logger.warning(f"⛔ Max retries exceeded for image {image_id}")
                 supabase.table("images").update({
                     "status": "failed",
                     "error_message": "Max polling attempts reached"
@@ -149,7 +140,7 @@ def poll_all_processing_images(self):
                 if status_data["status"] == "complete":
                     asset_url = status_data.get("asset_url")
                     if not asset_url:
-                        raise Exception("No asset_url found in task response.")
+                        raise Exception("Missing asset_url in task result")
 
                     image_res = requests.get(asset_url)
                     image_res.raise_for_status()
@@ -157,7 +148,6 @@ def poll_all_processing_images(self):
                     filename = f"{uuid.uuid4()}.png"
                     storage_path = f"{shop}/processed/{filename}"
 
-                    # Upload to Supabase Storage
                     upload_res = supabase.storage.from_(SUPABASE_BUCKET).upload(
                         path=storage_path,
                         file=image_res.content,
@@ -167,23 +157,12 @@ def poll_all_processing_images(self):
                     if hasattr(upload_res, "error") and upload_res.error:
                         raise Exception(f"Upload failed: {upload_res.error.message}")
 
-                    # Get signed URL
-                    signed_res = supabase.storage.from_(SUPABASE_BUCKET).create_signed_url(
-                        path=storage_path,
-                        expires_in=60 * 60 * 24 * 7  # 7 days
-                    )
+                    signed_url = get_signed_url(storage_path)
 
-                    signed_url = signed_res.get("signedURL") or signed_res.get("signed_url")
-                    if not signed_url:
-                        raise Exception("Failed to retrieve signed URL")
-                    
-                    processed_filename = Path(storage_path).name
-
-                    # ✅ Update image record
                     supabase.table("images").update({
                         "status": "processed",
                         "processed_path": storage_path,
-                        "filename": processed_filename
+                        "filename": Path(storage_path).name
                     }).eq("id", image_id).execute()
 
                     logger.info(f"✅ Image {image_id} processed successfully.")
@@ -196,22 +175,21 @@ def poll_all_processing_images(self):
                     }).eq("id", image_id).execute()
 
                 else:
-                    # Still processing: increment attempts
                     supabase.table("images").update({
                         "poll_attempts": poll_attempts + 1
                     }).eq("id", image_id).execute()
-                    logger.info(f"⏳ Image {image_id} still processing (Attempt {poll_attempts + 1}/3).")
+                    logger.info(f"⏳ Still processing: {image_id} (Attempt {poll_attempts + 1}/3)")
 
             except Exception as poll_error:
-                logger.error(f"❌ Error polling image {image_id}: {poll_error}")
+                logger.error(f"❌ Poll error for {image_id}: {poll_error}")
                 supabase.table("images").update({
                     "poll_attempts": poll_attempts + 1,
                     "error_message": str(poll_error)
                 }).eq("id", image_id).execute()
 
-        # 👇 If more still processing, retry after delay
-        recheck = supabase.table("images").select("id").eq("status", "processing").execute()
-        if recheck.data:
+        # Retry if any still in processing
+        remaining = supabase.table("images").select("id").eq("status", "processing").execute()
+        if remaining.data:
             logger.info("🔁 Still processing images found. Retrying in 10s...")
             raise self.retry()
 
@@ -221,4 +199,3 @@ def poll_all_processing_images(self):
     except Exception as e:
         logger.error(f"❌ Unexpected polling error: {e}")
         raise self.retry(exc=e)
-
