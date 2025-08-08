@@ -33,10 +33,12 @@ export default function DashboardClient() {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/dashboard-stats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shop }),
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/image/dashboard-stats`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ shop }), 
         });
   
         const { stats, recent, error } = await res.json();
