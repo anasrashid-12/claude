@@ -1,8 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import useShop from '@/hooks/useShop';
-import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
@@ -10,7 +10,7 @@ import { getSupabase } from '../../../../utils/supabase/supabaseClient';
 
 interface ImageItem {
   id: string;
-  image_url: string;
+  original_path: string;
   processed_path?: string;
   status: string;
   error_message?: string;
@@ -23,7 +23,6 @@ const fetcher = (url: string) =>
 export default function GalleryPage() {
   const { shop, loading: shopLoading } = useShop();
   const supabase = getSupabase();
-
   const { data, error, isLoading, mutate } = useSWR(
     shop ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/images` : null,
     fetcher,
@@ -33,27 +32,28 @@ export default function GalleryPage() {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!shop || !data?.images) return;
+    if (!data?.images) return;
 
     const fetchSignedUrls = async () => {
+      const paths = data.images
+        .filter((img: ImageItem) => img.processed_path && !signedUrls[img.processed_path])
+        .map((img: ImageItem) => img.processed_path!);
+
       const updates: Record<string, string> = {};
 
       await Promise.all(
-        data.images.map(async (img: ImageItem) => {
-          const path = img.processed_path;
-          if (path && !signedUrls[path]) {
-            try {
-              const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/signed-url/${encodeURIComponent(path)}`,
-                { credentials: 'include' }
-              );
-              const json = await res.json();
-              if (res.ok && json.signed_url) {
-                updates[path] = json.signed_url;
-              }
-            } catch (err) {
-              console.warn('Signed URL fetch failed:', err);
+        paths.map(async (path: string) => {
+          try {
+            const res = await fetch(
+              `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/signed-url/${encodeURIComponent(path)}`,
+              { credentials: 'include' }
+            );
+            const json = await res.json();
+            if (res.ok && json.signed_url) {
+              updates[path] = json.signed_url;
             }
+          } catch (err) {
+            console.warn(`Failed to fetch signed URL for ${path}`);
           }
         })
       );
@@ -64,7 +64,7 @@ export default function GalleryPage() {
     };
 
     fetchSignedUrls();
-  }, [shop, data?.images, signedUrls]);
+  }, [data?.images, signedUrls]);
 
   useEffect(() => {
     if (!shop) return;
@@ -89,21 +89,22 @@ export default function GalleryPage() {
   }, [shop, mutate, supabase]);
 
   const handleDownload = (path: string) => {
+    if (!path) return;
     const url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/fileserve/download?path=${encodeURIComponent(path)}`;
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', path.split('/').pop()!);
+    link.setAttribute('download', path.split('/').pop() ?? 'image.png');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   if (shopLoading || isLoading) {
-    return <div className="p-6 text-center text-gray-500">⏳ Loading processed images...</div>;
+    return <div className="p-6 text-center text-gray-500">Loading...</div>;
   }
 
   if (error) {
-    return <div className="p-6 text-center text-red-500">❌ Failed to load images.</div>;
+    return <div className="p-6 text-center text-red-500">Error loading images.</div>;
   }
 
   const images: ImageItem[] = data?.images || [];
@@ -125,29 +126,23 @@ export default function GalleryPage() {
       {processedImages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 text-center text-gray-500 dark:text-gray-400 mt-6">
           <p className="text-lg font-medium">No processed images yet.</p>
-          <p className="text-sm mt-1">
-            Upload images from the <strong>Upload</strong> tab and check back later.
-          </p>
         </div>
       ) : (
         <div className="mt-6 max-h-[600px] overflow-y-auto pr-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {processedImages.map((img: ImageItem) => {
-              const signedUrl = img.processed_path ? signedUrls[img.processed_path] : null;
-              const previewUrl = signedUrl || img.image_url;
+              const previewUrl = img.processed_path ? signedUrls[img.processed_path] : '';
 
               return (
-                <Link key={img.id} href={previewUrl} target="_blank">
+                <Link key={img.id} href={previewUrl || '#'} target="_blank">
                   <div className="rounded-xl border bg-white dark:bg-[#1e293b] p-4 shadow hover:scale-[1.02] transition-transform">
                     <div className="relative w-full h-48 rounded overflow-hidden mb-3">
                       {previewUrl ? (
                         <Image
                           src={previewUrl}
-                          alt={`Processed Image ${img.id}`}
+                          alt={img.filename}
                           fill
                           className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          priority
                           unoptimized
                         />
                       ) : (
@@ -161,7 +156,7 @@ export default function GalleryPage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
-                          handleDownload(img.processed_path || img.filename);
+                          handleDownload(img.processed_path || img.original_path);
                         }}
                         className="text-blue-500 hover:underline font-medium"
                       >
