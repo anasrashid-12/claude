@@ -62,7 +62,7 @@ async def get_dashboard_stats(request: Request, session: str = Cookie(None)):
 
                 recent.append({
                     "url": signed_url,
-                    "product": "Imported Image",
+                    "operation": img.get("operation", "Imported Image"),
                     "status": format_status(img["status"])
                 })
             except Exception as e:
