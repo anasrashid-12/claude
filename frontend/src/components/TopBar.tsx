@@ -8,8 +8,8 @@ import Image from 'next/image';
 
 export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
-  const { shop } = useShop();
-  const { avatarUrl, loading } = useAvatar(); 
+  const { shop, loading: shopLoading, error } = useShop();
+  const { avatarUrl, loading: avatarLoading } = useAvatar();
 
   return (
     <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -18,23 +18,41 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
 
       <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
+        {/* You can add title or leave empty */}
       </div>
 
-      <div className="flex items-center gap-3">
-        <button onClick={toggleTheme} className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
+      <div className="flex items-center gap-4">
+        {/* Credits display */}
+        <div className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[90px] text-right">
+          {shopLoading ? (
+            <span>Loading credits...</span>
+          ) : error ? (
+            <span className="text-red-500">Error</span>
+          ) : (
+            <>
+              Credits: <span className="font-bold">{shop?.credits ?? 0}</span>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={toggleTheme}
+          className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
+          aria-label="Toggle theme"
+        >
           {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
-        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
+        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition" aria-label="Help">
           <CircleHelp className="w-5 h-5" />
         </button>
 
-        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition">
+        <button className="text-gray-500 dark:text-gray-300 hover:text-black dark:hover:text-white transition" aria-label="Notifications">
           <Bell className="w-5 h-5" />
         </button>
 
         <div className="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-700 overflow-hidden">
-          {loading ? (
+          {avatarLoading ? (
             <div className="w-full h-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded-full" />
           ) : (
             <Image

@@ -1,4 +1,3 @@
-// UploadSection.tsx
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -64,13 +63,19 @@ export default function UploadSection() {
 
   const handleUpload = async () => {
     if (!files.length || !shop) return;
+
+    if (shop.credits <= 0) {
+      toast.error("❌ You have no credits left. Please purchase more.");
+      return;
+    }
+
     setUploading(true);
     let successCount = 0;
 
     for (const file of files) {
       try {
         const formData = new FormData();
-        formData.append('file', file); // ✅ must be 'file' to match FastAPI
+        formData.append('file', file);
         formData.append('operation', selectedOption);
 
         const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, {
@@ -79,11 +84,19 @@ export default function UploadSection() {
           body: formData,
         });
 
-        if (!uploadRes.ok) throw new Error(`Upload failed (${uploadRes.status})`);
         const data = await uploadRes.json();
 
+        if (!uploadRes.ok) {
+          if (uploadRes.status === 402 && data?.message) {
+            toast.error(`❌ ${data.message}`);
+          } else {
+            toast.error(`❌ ${file.name} failed`);
+          }
+          continue;
+        }
+
         toast.success(`✅ ${file.name} uploaded & processing started (ID: ${data.id})`);
-        successCount += 1;
+        successCount++;
       } catch (err) {
         console.error(err);
         toast.error(`❌ ${file.name} failed`);
@@ -100,8 +113,17 @@ export default function UploadSection() {
 
   if (shopLoading) return <p className="text-gray-500 dark:text-gray-400">Loading shop...</p>;
 
+  const noCredits = shop?.credits !== undefined && shop.credits <= 0;
+
   return (
     <div className="bg-white dark:bg-gray-900 p-4 sm:p-6 rounded-2xl shadow border border-gray-100 dark:border-gray-800 space-y-4 sm:space-y-6">
+      {/* Banner for zero credits */}
+      {noCredits && (
+        <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md border border-red-400">
+          You have 0 credits — purchase more to continue.
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">📤 Upload Images</h2>
         {files.length > 0 && (
@@ -145,7 +167,10 @@ export default function UploadSection() {
       {previews.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {previews.map((src, idx) => (
-            <div key={idx} className="relative w-full aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-sm group">
+            <div
+              key={idx}
+              className="relative w-full aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-sm group"
+            >
               <Image src={src} alt={`Preview ${idx}`} fill className="object-cover" />
               <button
                 onClick={(e) => {
@@ -166,10 +191,16 @@ export default function UploadSection() {
 
       <button
         onClick={handleUpload}
-        disabled={!files.length || uploading}
-        className="w-full sm:w-auto bg-black text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition"
+        disabled={!files.length || uploading || noCredits}
+        className={`w-full sm:w-auto px-5 py-2.5 rounded-lg text-white ${
+          noCredits ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+        } transition disabled:opacity-50`}
       >
-        {uploading ? 'Uploading...' : `Upload ${files.length} Image${files.length > 1 ? 's' : ''}`}
+        {uploading
+          ? 'Uploading...'
+          : noCredits
+          ? 'No credits left'
+          : `Upload ${files.length} Image${files.length > 1 ? 's' : ''}`}
       </button>
     </div>
   );

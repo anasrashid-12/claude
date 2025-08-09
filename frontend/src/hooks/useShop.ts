@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from 'react';
 
+interface ShopData {
+  shop: string;
+  credits: number;
+}
+
 interface UseShopResult {
-  shop: string | null;
+  shop: ShopData | null;
   loading: boolean;
   error: string | null;
 }
 
 export default function useShop(): UseShopResult {
-  const [shop, setShop] = useState<string | null>(null);
+  const [shop, setShop] = useState<ShopData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +34,8 @@ export default function useShop(): UseShopResult {
         if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
 
         const data = await res.json();
-        if (isMounted) setShop(data.shop);
+        // Expecting backend to return: { shop: "example.myshopify.com", credits: 5 }
+        if (isMounted) setShop(data);
       } catch (err: any) {
         console.error('[useShop] Error:', err);
         if (isMounted) setError(err.message || 'Authentication error');

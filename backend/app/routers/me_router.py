@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from supabase import create_client
 import jwt
 import os
+from app.services.supabase_service import get_shop_credits  # you already have this helper
 
 me_router = APIRouter()
 
@@ -28,12 +29,20 @@ async def get_me(request: Request):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+    # Get shop record
     result = supabase.table("shops").select("*").eq("shop", shop).maybe_single().execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Shop not found")
 
+    # ✅ Fetch credits from shop_credits table
+    try:
+        credits = get_shop_credits(shop)
+    except Exception:
+        credits = 0  # fallback if not found
+
     return JSONResponse({
         "shop": shop,
         "status": "authenticated",
-        "plan": result.data.get("plan", "free")
+        "plan": result.data.get("plan", "free"),
+        "credits": credits
     })

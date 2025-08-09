@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from supabase import create_client
+from app.services.supabase_service import initialize_shop_credits
 import os, httpx, jwt, time, urllib.parse
 
 # ──────────────────────🔐 Environment Variables ──────────────────────
@@ -111,6 +112,8 @@ async def auth_callback(request: Request):
             "shop": shop,
             "access_token": access_token,
         }, on_conflict=["shop"]).execute()
+
+        initialize_shop_credits(shop, initial_credits=10)
 
         # 🔔 Register uninstall webhook
         await register_uninstall_webhook(shop, access_token)
