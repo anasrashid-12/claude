@@ -47,10 +47,20 @@ def deduct_shop_credit(shop_domain: str, amount: int = 1):
     current = get_shop_credits(shop_domain)
     if current < amount:
         raise ValueError("Not enough credits")
+
     new_balance = current - amount
-    supabase.table("shop_credits").update({"credits": new_balance}).eq("shop_domain", shop_domain).execute()
+
+    response = supabase.table("shop_credits") \
+        .update({"credits": new_balance}) \
+        .eq("shop_domain", shop_domain) \
+        .execute()
+
+    if response.error:
+        raise Exception(f"Failed to deduct credits: {response.error.message}")
+
     log_credit_transaction(shop_domain, -amount, "Image processing")
     return new_balance
+
 
 def add_shop_credits(shop_domain: str, amount: int, reason: str):
     current = get_shop_credits(shop_domain)

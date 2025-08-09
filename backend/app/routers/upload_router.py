@@ -33,17 +33,16 @@ async def upload_image(
         logger.error(f"JWT decode error: {e}")
         raise HTTPException(status_code=401, detail="Invalid session token")
 
-    # 🆕 Check and deduct credits before upload
     try:
         remaining = deduct_shop_credit(shop, amount=1)
         logger.info(f"[Credits] Deducted 1 credit for {shop}, remaining: {remaining}")
     except ValueError as e:
         logger.warning(f"[Credits] Upload blocked for {shop} - {str(e)}")
         raise HTTPException(
-            status_code=402,  # Payment Required
+            status_code=402,
             detail={"message": "Not enough credits. Please purchase more to continue.", "remaining_credits": 0}
-    )
-    
+        )
+
     filename = f"{uuid.uuid4()}.png"
     path = f"{shop}/upload/{filename}"
 

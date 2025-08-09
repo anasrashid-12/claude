@@ -15,7 +15,8 @@ const OPTIONS = [
 const MAX_FILE_SIZE_MB = 5;
 
 export default function UploadSection() {
-  const { shop, loading: shopLoading } = useShop();
+  // Destructure setShop from useShop as well
+  const { shop, loading: shopLoading, setShop } = useShop();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -94,6 +95,11 @@ export default function UploadSection() {
           }
           continue;
         }
+
+        // Update credits immediately after successful upload
+        setShop((prev) =>
+          prev ? { ...prev, credits: data.remaining_credits } : prev
+        );
 
         toast.success(`✅ ${file.name} uploaded & processing started (ID: ${data.id})`);
         successCount++;
