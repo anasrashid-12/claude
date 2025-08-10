@@ -43,8 +43,8 @@ export default function BuyCreditsPage() {
       }
 
       toast.success(`🎉 Successfully purchased ${selectedPlan.credits} credits!`);
+      setSelectedPlan(null);
 
-      // TODO: Optionally refresh shop credits in your app state here
     } catch (error: any) {
       toast.error(`❌ ${error.message || 'Failed to buy credits'}`);
     } finally {

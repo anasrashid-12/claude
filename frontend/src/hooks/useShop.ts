@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSupabase } from '../../utils/supabase/supabaseClient'; // adjust path
-import type {
-  RealtimePostgresUpdatePayload,
-} from '@supabase/supabase-js';
+import { getSupabase } from '../../utils/supabase/supabaseClient';
+import type { RealtimePostgresUpdatePayload } from '@supabase/supabase-js';
 
 interface ShopData {
   shop: string;
@@ -15,7 +13,7 @@ interface UseShopResult {
   shop: ShopData | null;
   loading: boolean;
   error: string | null;
-  setShop: React.Dispatch<React.SetStateAction<ShopData | null>>;  // <-- added
+  setShop: React.Dispatch<React.SetStateAction<ShopData | null>>;
 }
 
 export default function useShop(): UseShopResult {
@@ -27,7 +25,7 @@ export default function useShop(): UseShopResult {
     let isMounted = true;
     const supabase = getSupabase();
 
-    let channel = supabase.channel('public:shop_credits');
+    const channel = supabase.channel('public:shop_credits');
 
     const fetchShop = async () => {
       try {
@@ -40,34 +38,37 @@ export default function useShop(): UseShopResult {
         if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
 
         const data = await res.json();
-        if (isMounted) setShop(data);
+        if (isMounted && data.shop) {
+          setShop({ shop: data.shop, credits: data.credits ?? 0 });
 
-        if (data.shop) {
+          // Listen for credit updates
           channel
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'shop_credits',
-              filter: `shop_domain=eq.${data.shop}`,
-            },
-            (payload: RealtimePostgresUpdatePayload<ShopData>) => {
-              if (!isMounted) return;
-              setShop((prev) =>
-                prev ? { ...prev, credits: payload.new.credits } : prev
-              );
-            }
-          )
-          .subscribe((status: string, error?: Error) => {
-            if (status === 'SUBSCRIBED') {
-              console.log('Realtime subscription established');
-            }
-            if (error) {
-              console.error('Realtime subscription error:', error);
-            }
-          });
-        }        
+            .on(
+              'postgres_changes',
+              {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'shop_credits',
+                filter: `shop_domain=eq.${data.shop}`,
+              },
+              (payload: RealtimePostgresUpdatePayload<ShopData>) => {
+                if (!isMounted) return;
+                if (payload?.new?.credits !== undefined) {
+                  setShop((prev) =>
+                    prev ? { ...prev, credits: payload.new.credits } : prev
+                  );
+                }
+              }
+            )
+            .subscribe((status, err) => {
+              if (status === 'SUBSCRIBED') {
+                console.log('✅ Realtime subscription established');
+              }
+              if (err) {
+                console.error('Realtime subscription error:', err);
+              }
+            });
+        }
       } catch (err: any) {
         console.error('[useShop] Error:', err);
         if (isMounted) setError(err.message || 'Authentication error');
