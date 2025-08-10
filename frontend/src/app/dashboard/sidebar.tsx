@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { X, LayoutDashboard, Upload, PackageOpen, ImageIcon, Settings } from 'lucide-react';
+import { X, LayoutDashboard, Upload, PackageOpen, ImageIcon, Settings, CreditCard } from 'lucide-react';
 import { cn } from '../../../utils/utils';
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/dashboard/queue', label: 'Queue', icon: PackageOpen },
   { href: '/dashboard/gallery', label: 'Gallery', icon: ImageIcon },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/buy', label: 'Buy Credits', icon: CreditCard },
 ];
 
 export default function Sidebar({
