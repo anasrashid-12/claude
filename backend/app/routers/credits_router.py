@@ -56,7 +56,7 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
     if SANDBOX_MODE:
         # Sandbox flow: fake purchase ID & confirmation URL
         purchase_id = f"sandbox_{shop}_{plan_id}_{int(time.time())}"
-        confirmation_url = f"{FRONTEND_URL}/credits/confirm?planId={plan_id}&sandbox=true"
+        confirmation_url = f"{APP_URL}/credits/confirm?planId={plan_id}&sandbox=true"
 
         # Insert pending record
         supabase.table("credit_pending").insert({
