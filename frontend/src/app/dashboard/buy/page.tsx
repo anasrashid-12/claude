@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 
 type Plan = { id: string; credits: number; price: number; discount?: string; description?: string };
@@ -15,6 +15,19 @@ const plans: Plan[] = [
 export default function BuyCreditsPage() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // 🔹 Optional: show toast if credits were added via query param after redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const creditsAdded = params.get('credits_added');
+    if (creditsAdded) {
+      toast.success(`🎉 ${creditsAdded} credits added!`);
+      // Remove query params from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('credits_added');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   const startCheckout = async () => {
     if (!selectedPlan) {
@@ -33,16 +46,14 @@ export default function BuyCreditsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to create checkout');
 
-      // 🔹 Detect sandbox/test mode
       const url = new URL(data.confirmationUrl);
       const sandboxMode = url.searchParams.get('sandbox') === 'true';
-      const purchaseId = url.searchParams.get('purchaseId');
 
-      if (sandboxMode && purchaseId) {
-        // Sandbox flow: immediately confirm credits
+      if (sandboxMode) {
+        // Sandbox flow: direct redirect adds credits immediately
         window.location.href = data.confirmationUrl;
       } else {
-        // Shopify embedded app: always redirect top window
+        // Real Shopify: embedded app redirect
         (window.top || window).location.href = data.confirmationUrl;
       }
     } catch (e: any) {
@@ -93,6 +104,7 @@ export default function BuyCreditsPage() {
             </label>
           ))}
         </fieldset>
+
         <button
           type="submit"
           disabled={!selectedPlan || loading}
