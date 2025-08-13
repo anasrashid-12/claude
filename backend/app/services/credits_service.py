@@ -1,4 +1,3 @@
-
 # app/services/credits_service.py
 from app.services.supabase_service import supabase
 from datetime import datetime, timezone
@@ -7,7 +6,7 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 def ensure_shop_credits_row(shop_domain: str):
-    row = supabase.table("shop_credits").select("*").eq("shop_domain", shop_domain).single().execute().data
+    row = supabase.table("shop_credits").select("*").eq("shop_domain", shop_domain).maybe_single().execute().data
     if row is None:
         supabase.table("shop_credits").insert({
             "shop_domain": shop_domain,
@@ -23,12 +22,12 @@ def add_credits_and_record(shop: str, credits_to_add: int, plan_id: str, source:
     """
     # idempotency check
     existing = supabase.table("credit_transactions") \
-        .select("id").eq("shop", shop).eq("external_id", purchase_id).single().execute().data
+        .select("id").eq("shop", shop).eq("external_id", purchase_id).maybe_single().execute().data
     if existing:
         return None
 
     # ensure shop_credits row
-    res = supabase.table("shop_credits").select("credits").eq("shop_domain", shop).single().execute()
+    res = supabase.table("shop_credits").select("credits").eq("shop_domain", shop).maybe_single().execute()
     if res.data is None:
         new_balance = credits_to_add
         supabase.table("shop_credits").insert({
