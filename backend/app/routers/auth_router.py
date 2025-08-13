@@ -36,12 +36,33 @@ def create_jwt(shop: str):
 
 # ──────────────────────🔔 Register Uninstall Webhook ──────────────────────
 async def register_uninstall_webhook(shop: str, access_token: str):
-    try:
-        url = f"https://{shop}/admin/api/2023-10/webhooks.json"
-        headers = {
-            "X-Shopify-Access-Token": access_token,
-            "Content-Type": "application/json",
-        }
+    """
+    Registers the app/uninstalled webhook if it doesn't already exist.
+    Avoids 422 errors by checking existing webhooks first.
+    """
+    url = f"https://{shop}/admin/api/2023-10/webhooks.json"
+    headers = {
+        "X-Shopify-Access-Token": access_token,
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        # 1️⃣ Fetch existing webhooks
+        try:
+            res = await client.get(url, headers=headers)
+            res.raise_for_status()
+            existing_webhooks = res.json().get("webhooks", [])
+        except Exception as e:
+            print("❌ Failed to fetch existing webhooks:", e)
+            existing_webhooks = []
+
+        # 2️⃣ Check if uninstall webhook already exists
+        for wh in existing_webhooks:
+            if wh.get("topic") == "app/uninstalled" and wh.get("address") == f"{BACKEND_URL}/webhooks/uninstall":
+                print("✅ Uninstall webhook already registered")
+                return True
+
+        # 3️⃣ Create webhook if it doesn't exist
         payload = {
             "webhook": {
                 "topic": "app/uninstalled",
@@ -49,13 +70,14 @@ async def register_uninstall_webhook(shop: str, access_token: str):
                 "format": "json",
             }
         }
-        async with httpx.AsyncClient() as client:
+        try:
             res = await client.post(url, headers=headers, json=payload)
             res.raise_for_status()
-            print("✅ Webhook registered:", res.status_code)
-    except Exception as e:
-        print("❌ Webhook registration failed:", str(e))
-
+            print("✅ Uninstall webhook registered")
+            return True
+        except Exception as e:
+            print("❌ Failed to register uninstall webhook:", e)
+            return False
 
 # ──────────────────────🔁 Shopify OAuth Install ──────────────────────
 @auth_router.get("/auth/install")
