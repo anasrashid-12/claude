@@ -54,9 +54,9 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
     plan = PLANS[plan_id]
 
     if SANDBOX_MODE:
-        # Sandbox flow: fake purchase ID & confirmation URL
+        # Sandbox: generate purchase_id and pass it to confirm
         purchase_id = f"sandbox_{shop}_{plan_id}_{int(time.time())}"
-        confirmation_url = f"{APP_URL}/credits/confirm?planId={plan_id}&sandbox=true"
+        confirmation_url = f"{APP_URL}/credits/confirm?planId={plan_id}&sandbox=true&purchaseId={purchase_id}"
 
         # Insert pending record
         supabase.table("credit_pending").insert({
@@ -112,7 +112,12 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
 
 # ──────────────────────✅ Confirm Purchase ──────────────────────
 @credits_router.get("/credits/confirm")
-async def confirm_after_return(planId: str, session: str = Cookie(None), sandbox: str = None):
+async def confirm_after_return(
+    planId: str,
+    session: str = Cookie(None),
+    sandbox: str = None,
+    purchaseId: str = None
+):
     shop = get_shop_from_session(session)
     plan_id = str(planId)
     if plan_id not in PLANS:
@@ -121,13 +126,15 @@ async def confirm_after_return(planId: str, session: str = Cookie(None), sandbox
     plan = PLANS[plan_id]
 
     if SANDBOX_MODE or sandbox:
-        # Directly add credits for sandbox/testing
+        if not purchaseId:
+            raise HTTPException(status_code=400, detail="Missing sandbox purchaseId")
+        # Idempotent credit add for sandbox
         new_balance = add_credits_and_record(
             shop=shop,
             credits_to_add=plan["credits"],
             plan_id=plan_id,
             source="sandbox",
-            purchase_id=f"sandbox_{shop}_{plan_id}"
+            purchase_id=purchaseId
         )
         return RedirectResponse(url=f"{FRONTEND_URL}/dashboard?credits_added={plan['credits']}")
 

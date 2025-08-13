@@ -33,11 +33,13 @@ export default function BuyCreditsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to create checkout');
 
-      // 🔹 Sandbox / test mode detection
-      const sandboxMode = data.confirmationUrl.includes('sandbox=true');
+      // 🔹 Detect sandbox/test mode
+      const url = new URL(data.confirmationUrl);
+      const sandboxMode = url.searchParams.get('sandbox') === 'true';
+      const purchaseId = url.searchParams.get('purchaseId');
 
-      if (sandboxMode) {
-        // Directly redirect to dashboard with credits added
+      if (sandboxMode && purchaseId) {
+        // Sandbox flow: immediately confirm credits
         window.location.href = data.confirmationUrl;
       } else {
         // Shopify embedded app: always redirect top window
@@ -54,7 +56,13 @@ export default function BuyCreditsPage() {
     <main className="max-w-xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-xl shadow-md my-8">
       <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Buy Credits</h1>
 
-      <form onSubmit={(e) => { e.preventDefault(); startCheckout(); }} className="space-y-5">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          startCheckout();
+        }}
+        className="space-y-5"
+      >
         <fieldset className="space-y-4">
           {plans.map((plan) => (
             <label
