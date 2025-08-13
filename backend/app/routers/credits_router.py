@@ -33,8 +33,8 @@ def get_shop_from_session(session: str):
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-def get_access_token(shop_domain: str) -> str:
-    res = supabase.table("shops").select("access_token").eq("shop_domain", shop_domain).single().execute()
+def get_access_token(shop: str) -> str:
+    res = supabase.table("shops").select("access_token").eq("shop", shop).single().execute()
     if not res.data or not res.data.get("access_token"):
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
     return res.data["access_token"]
