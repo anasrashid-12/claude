@@ -9,6 +9,7 @@ import os, jwt, time
 
 credits_router = APIRouter(prefix="")
 
+# ────────────────── Environment & Config ──────────────────
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 APP_URL = os.getenv("BACKEND_URL")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
@@ -34,10 +35,11 @@ def get_shop_from_session(session: str):
         raise HTTPException(status_code=401, detail="Invalid session")
 
 def get_access_token(shop: str) -> str:
-    res = supabase.table("shops").select("access_token").eq("shop", shop).single().execute()
-    if not res.data or not res.data.get("access_token"):
+    res = supabase.table("shops").select("access_token").eq("shop", shop).maybe_single().execute()
+    shop_data = getattr(res, "data", None)
+    if not shop_data or not shop_data.get("access_token"):
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
-    return res.data["access_token"]
+    return shop_data["access_token"]
 
 # ────────────────── Create Checkout ──────────────────
 @credits_router.post("/credits/checkout")
@@ -54,6 +56,7 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
         purchase_id = f"sandbox_{shop}_{plan_id}_{int(time.time())}"
         confirmation_url = f"{APP_URL}/credits/confirm?planId={plan_id}&sandbox=true&purchaseId={purchase_id}"
 
+        # Insert pending record
         supabase.table("credit_pending").insert({
             "shop_domain": shop,
             "plan_id": plan_id,
@@ -65,7 +68,7 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
 
         return JSONResponse({"confirmationUrl": confirmation_url})
 
-    # Shopify real billing
+    # Real Shopify billing
     access_token = get_access_token(shop)
     return_url = f"{APP_URL}/credits/confirm?planId={plan_id}"
 
@@ -79,16 +82,23 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
     }
     """
     name = f"Maxflow Credits {plan['credits']}"
-    variables = {"name": name, "price": {"amount": plan["price"], "currencyCode": CURRENCY}, "returnUrl": return_url}
+    variables = {
+        "name": name,
+        "price": {"amount": plan["price"], "currencyCode": CURRENCY},
+        "returnUrl": return_url
+    }
 
     data = shopify_graphql(shop, access_token, mutation, variables)
-    payload = data["appPurchaseOneTimeCreate"]
+    payload = data.get("appPurchaseOneTimeCreate", {})
     if payload.get("userErrors"):
         raise HTTPException(status_code=400, detail=str(payload["userErrors"]))
 
-    purchase_id = payload["appPurchaseOneTime"]["id"]
-    confirmation_url = payload["confirmationUrl"]
+    purchase_id = payload.get("appPurchaseOneTime", {}).get("id")
+    confirmation_url = payload.get("confirmationUrl")
+    if not confirmation_url:
+        raise HTTPException(status_code=500, detail="Failed to generate Shopify confirmation URL")
 
+    # Insert pending record
     supabase.table("credit_pending").insert({
         "shop_domain": shop,
         "plan_id": plan_id,
@@ -113,7 +123,8 @@ async def confirm_after_return(planId: str, session: str = Cookie(None), sandbox
     if SANDBOX_MODE or sandbox:
         if not purchaseId:
             raise HTTPException(status_code=400, detail="Missing sandbox purchaseId")
-        add_credits_and_record(shop, plan["credits"], plan_id, "sandbox", purchaseId)
+        new_balance = add_credits_and_record(shop, plan["credits"], plan_id, "sandbox", purchaseId)
+        print(f"[sandbox] {shop} credits updated: {new_balance}")
         return RedirectResponse(f"{FRONTEND_URL}/dashboard?credits_added={plan['credits']}")
 
     # Real Shopify billing verification
@@ -128,7 +139,7 @@ async def confirm_after_return(planId: str, session: str = Cookie(None), sandbox
     }
     """
     data = shopify_graphql(shop, access_token, query)
-    purchases = [edge["node"] for edge in data["currentAppInstallation"]["oneTimePurchases"]["edges"]]
+    purchases = [edge["node"] for edge in data.get("currentAppInstallation", {}).get("oneTimePurchases", {}).get("edges", [])]
 
     target_name = f"Maxflow Credits {plan['credits']}"
     active = next((p for p in purchases if p["name"] == target_name and p["status"] == "ACTIVE"), None)

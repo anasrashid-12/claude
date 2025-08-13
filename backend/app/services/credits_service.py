@@ -6,7 +6,8 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 def ensure_shop_credits_row(shop_domain: str):
-    row = supabase.table("shop_credits").select("*").eq("shop_domain", shop_domain).maybe_single().execute().data
+    res = supabase.table("shop_credits").select("*").eq("shop_domain", shop_domain).maybe_single().execute()
+    row = getattr(res, "data", None)
     if row is None:
         supabase.table("shop_credits").insert({
             "shop_domain": shop_domain,
@@ -21,15 +22,20 @@ def add_credits_and_record(shop: str, credits_to_add: int, plan_id: str, source:
     Otherwise update shop_credits and insert a credit_transactions row and return new_balance.
     """
     # idempotency check
-    existing = supabase.table("credit_transactions") \
-        .select("id").eq("shop", shop).eq("external_id", purchase_id).maybe_single().execute().data
+    res = supabase.table("credit_transactions") \
+        .select("id").eq("shop", shop).eq("external_id", purchase_id).maybe_single().execute()
+    existing = getattr(res, "data", None)
     if existing:
         return None
 
     # ensure shop_credits row
     res = supabase.table("shop_credits").select("credits").eq("shop_domain", shop).maybe_single().execute()
-    if res.data is None:
-        new_balance = credits_to_add
+    current_credits = getattr(res, "data", {}).get("credits", 0) if res else 0
+
+    new_balance = current_credits + credits_to_add
+
+    if not getattr(res, "data", None):
+        # insert new row
         supabase.table("shop_credits").insert({
             "shop_domain": shop,
             "credits": new_balance,
@@ -37,8 +43,7 @@ def add_credits_and_record(shop: str, credits_to_add: int, plan_id: str, source:
             "updated_at": now_iso()
         }).execute()
     else:
-        current = res.data.get("credits", 0)
-        new_balance = current + credits_to_add
+        # update existing
         supabase.table("shop_credits").update({
             "credits": new_balance,
             "updated_at": now_iso()
@@ -54,7 +59,7 @@ def add_credits_and_record(shop: str, credits_to_add: int, plan_id: str, source:
         "created_at": now_iso()
     }).execute()
 
-    # mark pending if exists (optional)
+    # mark pending if exists
     supabase.table("credit_pending").update({"status": "COMPLETED", "updated_at": now_iso()}) \
         .eq("shop_domain", shop).eq("purchase_id", purchase_id).execute()
 
