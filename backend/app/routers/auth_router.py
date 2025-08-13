@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from supabase import create_client
+from app.services.shopify_webhooks import register_shopify_webhooks
 from app.services.supabase_service import initialize_shop_credits
 import os, httpx, jwt, time, urllib.parse
 
@@ -114,6 +115,12 @@ async def auth_callback(request: Request):
         }, on_conflict=["shop"]).execute()
 
         initialize_shop_credits(shop, initial_credits=10)
+        # after saving shop_domain & access_token to Supabase:
+        try:
+            register_shopify_webhooks(shop, access_token)
+        except Exception as e:
+            # log but don't block merchant install
+            print("Webhook registration failed:", e)
 
         # 🔔 Register uninstall webhook
         await register_uninstall_webhook(shop, access_token)
