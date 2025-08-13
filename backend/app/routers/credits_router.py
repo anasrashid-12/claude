@@ -7,7 +7,7 @@ from app.services.credits_service import ensure_shop_credits_row, add_credits_an
 from app.config.plans import PLANS
 import os, jwt
 
-router = APIRouter(prefix="")
+credits_router = APIRouter(prefix="")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "maxflow_secret")
 APP_URL = os.getenv("BACKEND_URL")      # your public backend URL e.g. https://api.example.com
@@ -39,7 +39,7 @@ def get_access_token(shop_domain: str) -> str:
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
     return res.data["access_token"]
 
-@router.post("/credits/checkout")
+@credits_router.post("/credits/checkout")
 async def create_checkout(request: Request, session: str = Cookie(None)):
     """
     Create Shopify one-time app purchase and return confirmationUrl.
@@ -93,7 +93,7 @@ async def create_checkout(request: Request, session: str = Cookie(None)):
 
     return JSONResponse({"confirmationUrl": confirmation_url})
 
-@router.get("/credits/confirm")
+@credits_router.get("/credits/confirm")
 async def confirm_after_return(planId: str, session: str = Cookie(None)):
     """
     Called when merchant returns from Shopify after approving (or declining) the purchase.
