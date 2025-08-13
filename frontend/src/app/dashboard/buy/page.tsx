@@ -33,8 +33,14 @@ export default function BuyCreditsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Failed to create checkout');
 
-      // Shopify embedded app: always redirect top window
-      if (typeof window !== 'undefined') {
+      // 🔹 Sandbox / test mode detection
+      const sandboxMode = data.confirmationUrl.includes('sandbox=true');
+
+      if (sandboxMode) {
+        // Directly redirect to dashboard with credits added
+        window.location.href = data.confirmationUrl;
+      } else {
+        // Shopify embedded app: always redirect top window
         (window.top || window).location.href = data.confirmationUrl;
       }
     } catch (e: any) {
