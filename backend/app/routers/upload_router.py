@@ -48,7 +48,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     # Read file content
     file_content = await file.read()
 
-    # Upload to Supabase Storage
+    # Upload to Supabase Storage safely
     try:
         upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
@@ -56,7 +56,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file_options={"content-type": file.content_type},
         )
 
-        # Check if the result has a 'data' attribute, else fallback
+        # Safe access for different client versions
         data = getattr(upload_result, "data", None)
         error = getattr(upload_result, "error", None)
 
@@ -80,10 +80,10 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "filename": file.filename,
         }).execute()
 
-        if not insert_response.get("data") or insert_response.get("status_code") not in (200, 201):
+        if not getattr(insert_response, "data", None) or getattr(insert_response, "status_code", 0) not in (200, 201):
             raise HTTPException(status_code=500, detail=f"Database insert failed: {insert_response}")
 
-        image_id = insert_response["data"][0]["id"]
+        image_id = insert_response.data[0]["id"]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {e}")
@@ -148,10 +148,10 @@ async def get_image_status(image_id: str, session: str = Cookie(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-    if not result.get("data"):
+    if not getattr(result, "data", None):
         raise HTTPException(status_code=404, detail="Image not found")
 
-    data = result["data"]
+    data = result.data
     return {
         "id": data.get("id"),
         "status": data.get("status"),
