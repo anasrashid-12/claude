@@ -55,12 +55,17 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file=file_content,
             file_options={"content-type": file.content_type},
         )
-        # access attributes correctly
-        if upload_result.error:
-            raise Exception(f"Supabase upload failed: {upload_result.error}")
-        if not upload_result.data:
-            raise Exception("Supabase upload failed: No data returned")
+
+        data = upload_result.get("data")
+        error = upload_result.get("error")
+
+        if error:
+            raise HTTPException(status_code=500, detail=f"Supabase upload failed: {error}")
+        if not data:
+            raise HTTPException(status_code=500, detail="Supabase upload failed: no data returned")
+
         logger.info(f"Upload succeeded for {path}")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Supabase upload failed: {e}")
 
@@ -74,13 +79,13 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "filename": file.filename,
         }).execute()
 
-        if insert_response.status_code not in (200, 201) or not insert_response.data:
-            raise Exception(f"Image insert failed: {insert_response.data}")
+        if not insert_response.get("data") or insert_response.get("status_code") not in (200, 201):
+            raise HTTPException(status_code=500, detail=f"Database insert failed: {insert_response}")
+
+        image_id = insert_response["data"][0]["id"]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {e}")
-
-    image_id = insert_response.data[0]["id"]
 
     # Deduct credit
     try:
@@ -143,7 +148,7 @@ async def get_image_status(image_id: str, session: str = Cookie(None)):
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     if not result.get("data"):
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail="Image not found")
 
     data = result["data"]
     return {
