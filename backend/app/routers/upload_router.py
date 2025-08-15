@@ -55,7 +55,9 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file=file_content,
             file_options={"content-type": file.content_type},
         )
-        upload_result.raise_for_status()  # <-- this will raise if the upload failed
+        # Check if data exists (success) or not
+        if not getattr(upload_result, "data", None):
+            raise Exception(f"Supabase upload failed: {getattr(upload_result, 'error', 'Unknown error')}")
         logger.info(f"Upload succeeded for {path}")
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
