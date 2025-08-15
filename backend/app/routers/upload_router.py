@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Cookie, Form
 from starlette.responses import JSONResponse
 import uuid
 import os
@@ -55,13 +55,14 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file=file_content,
             file_options={"content-type": file.content_type},
         )
-        if upload_result.get("error"):
-            raise Exception(f"Supabase upload failed: {upload_result['error']}")
-        if not upload_result.get("data"):
+        # access attributes correctly
+        if upload_result.error:
+            raise Exception(f"Supabase upload failed: {upload_result.error}")
+        if not upload_result.data:
             raise Exception("Supabase upload failed: No data returned")
         logger.info(f"Upload succeeded for {path}")
     except Exception as e:
-        raise Exception(f"Supabase upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Supabase upload failed: {e}")
 
     # Insert DB row
     try:
@@ -77,7 +78,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             raise Exception(f"Image insert failed: {insert_response.data}")
 
     except Exception as e:
-        raise Exception(f"Database insert failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Database insert failed: {e}")
 
     image_id = insert_response.data[0]["id"]
 
@@ -98,7 +99,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         add_shop_credits(shop, 1, "Refund: queue failed")
         supabase.table("images").delete().eq("id", image_id).execute()
-        raise Exception(f"Queueing job failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Queueing job failed: {e}")
 
     return {
         "id": image_id,
@@ -141,10 +142,10 @@ async def get_image_status(image_id: str, session: str = Cookie(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-    if not getattr(result, "data", None):
+    if not result.get("data"):
         raise HTTPException(status_code=404, detail="Not found")
 
-    data = result.data
+    data = result["data"]
     return {
         "id": data.get("id"),
         "status": data.get("status"),
