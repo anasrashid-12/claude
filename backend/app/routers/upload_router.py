@@ -1,10 +1,8 @@
-# app/api/upload_router.py
 from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Cookie, Form
 from starlette.responses import JSONResponse
 import uuid
 import os
 import jwt
-import asyncio
 from typing import List, Optional
 from app.logging_config import logger
 from app.services.supabase_service import supabase
@@ -43,11 +41,11 @@ def get_shop_from_cookie(session: Optional[str]) -> str:
 
 
 async def process_single_file(file: UploadFile, operation: str, shop: str):
-    """Process a single file upload and return job details or raise an exception."""
+    """Upload one file, insert DB record, deduct credit, and queue Celery job."""
     filename = f"{uuid.uuid4()}.png"
     path = f"{shop}/upload/{filename}"
 
-    # Read file content
+    # Read file
     file_content = await file.read()
 
     # Upload to Supabase Storage
@@ -60,8 +58,8 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
 
-    if isinstance(upload_result, dict) and upload_result.get("error"):
-        raise Exception(f"Upload failed: {upload_result['error']['message']}")
+    if not getattr(upload_result, "data", None):
+        raise Exception("Upload failed: no data returned from Supabase")
 
     # Insert DB row
     try:
@@ -75,7 +73,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Database insert failed: {e}")
 
-    if not insert_response.data:
+    if not getattr(insert_response, "data", None):
         raise Exception("Image insert failed in Supabase")
 
     image_id = insert_response.data[0]["id"]
@@ -84,14 +82,13 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     try:
         remaining = deduct_shop_credit(shop, amount=1)
     except ValueError:
-        # Delete DB row if no credits
         supabase.table("images").delete().eq("id", image_id).execute()
         raise HTTPException(status_code=402, detail={
             "message": "Not enough credits. Please purchase more to continue.",
             "remaining_credits": 0
         })
 
-    # Queue processing job
+    # Queue job
     try:
         task_result = submit_job_task.delay(image_id, operation, path, shop)
         celery_job_id = task_result.id
@@ -167,14 +164,19 @@ async def upload_multiple_images(
 async def get_image_status(image_id: str, session: str = Cookie(None)):
     shop = get_shop_from_cookie(session)
     try:
-        result = supabase.table("images").select("*").eq("id", image_id).eq("shop", shop).single().execute()
+        result = supabase.table("images") \
+            .select("*") \
+            .eq("id", image_id) \
+            .eq("shop", shop) \
+            .single() \
+            .execute()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-    if hasattr(result, "error") and result.error:
+    if not getattr(result, "data", None):
         raise HTTPException(status_code=404, detail="Not found")
 
-    data = result.data or {}
+    data = result.data
     return {
         "id": data.get("id"),
         "status": data.get("status"),
