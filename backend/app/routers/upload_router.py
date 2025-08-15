@@ -48,7 +48,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     # Read file content
     file_content = await file.read()
 
-    # Upload to Supabase Storage
+# Upload to Supabase Storage
     try:
         upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
@@ -58,12 +58,9 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
 
-    # ✅ Check result safely
-    if hasattr(upload_result, "error") and upload_result.error is not None:
+    # Only check for errors
+    if hasattr(upload_result, "error") and upload_result.error:
         raise Exception(f"Upload failed: {upload_result.error}")
-
-    if not hasattr(upload_result, "data") or upload_result.data is None:
-        raise Exception("Upload failed: no data returned from Supabase")
 
     logger.info(f"Upload succeeded for {path}")
 
