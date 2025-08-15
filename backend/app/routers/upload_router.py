@@ -48,7 +48,6 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     # Read file
     file_content = await file.read()
 
-    # Upload to Supabase Storage
     try:
         upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
@@ -58,9 +57,8 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
 
-    # ✅ Fix: New SDK returns None on success, old SDK returns dict with error
-    if isinstance(upload_result, dict) and upload_result.get("error"):
-        raise Exception(f"Upload failed: {upload_result['error']['message']}")
+    if hasattr(upload_result, "error") and upload_result.error:
+        raise Exception(f"Upload failed: {upload_result.error.message}")
     
     logger.info(f"Upload succeeded for {path}")
 
