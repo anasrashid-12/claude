@@ -48,21 +48,16 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     # Read file content
     file_content = await file.read()
 
-# Upload to Supabase Storage
+    # Upload to Supabase Storage
     try:
-        upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
+        logger.info(f"Upload succeeded for {path}")
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
-
-    # Only check for errors
-    if hasattr(upload_result, "error") and upload_result.error:
-        raise Exception(f"Upload failed: {upload_result.error}")
-
-    logger.info(f"Upload succeeded for {path}")
 
     # Insert DB row
     try:
