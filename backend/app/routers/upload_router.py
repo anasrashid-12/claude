@@ -50,22 +50,12 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
 
     # Upload to Supabase Storage safely
     try:
-        upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
+        supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
-
-        # Check if the upload returned a status_code
-        status_code = getattr(upload_result, "status_code", None)
-        if status_code not in (200, 201):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Supabase upload failed: status_code={status_code}"
-            )
-
         logger.info(f"Upload succeeded for {path}")
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Supabase upload failed: {e}")
 
@@ -79,10 +69,13 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "filename": file.filename,
         }).execute()
 
-        if not getattr(insert_response, "data", None) or getattr(insert_response, "status_code", 0) not in (200, 201):
+        data = getattr(insert_response, "data", None)
+        status_code = getattr(insert_response, "status_code", 0)
+
+        if not data or status_code not in (200, 201):
             raise HTTPException(status_code=500, detail=f"Database insert failed: {insert_response}")
 
-        image_id = insert_response.data[0]["id"]
+        image_id = data[0]["id"]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {e}")
@@ -147,10 +140,10 @@ async def get_image_status(image_id: str, session: str = Cookie(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-    if not getattr(result, "data", None):
+    data = getattr(result, "data", None)
+    if not data:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    data = result.data
     return {
         "id": data.get("id"),
         "status": data.get("status"),
