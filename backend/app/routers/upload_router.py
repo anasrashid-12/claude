@@ -50,11 +50,12 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
 
     # Upload to Supabase Storage
     try:
-        supabase.storage.from_(SUPABASE_BUCKET).upload(
+        upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
             file=file_content,
             file_options={"content-type": file.content_type},
         )
+        upload_result.raise_for_status()  # <-- this will raise if the upload failed
         logger.info(f"Upload succeeded for {path}")
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
@@ -68,11 +69,12 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "operation": operation,
             "filename": file.filename,
         }).execute()
+
+        if insert_response.status_code not in (200, 201) or not insert_response.data:
+            raise Exception(f"Image insert failed: {insert_response.data}")
+
     except Exception as e:
         raise Exception(f"Database insert failed: {e}")
-
-    if not getattr(insert_response, "data", None):
-        raise Exception("Image insert failed in Supabase")
 
     image_id = insert_response.data[0]["id"]
 
