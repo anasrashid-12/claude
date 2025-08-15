@@ -109,6 +109,26 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     }
 
 
+@upload_router.post("/upload")
+async def upload_image(
+    request: Request,
+    file: UploadFile = File(...),
+    operation: str = Form(...),
+    session: str = Cookie(None),
+):
+    shop = get_shop_from_cookie(session)
+    operation = normalize_operation(operation)
+
+    try:
+        result = await process_single_file(file, operation, shop)
+        return JSONResponse(content=result, status_code=202)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @upload_router.post("/upload-multiple")
 async def upload_multiple_images(
     request: Request,
