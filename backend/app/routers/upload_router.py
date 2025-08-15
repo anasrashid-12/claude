@@ -56,14 +56,13 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file_options={"content-type": file.content_type},
         )
 
-        # Safe access for different client versions
-        data = getattr(upload_result, "data", None)
-        error = getattr(upload_result, "error", None)
-
-        if error:
-            raise HTTPException(status_code=500, detail=f"Supabase upload failed: {error}")
-        if not data:
-            raise HTTPException(status_code=500, detail="Supabase upload failed: no data returned")
+        # Check if the upload returned a status_code
+        status_code = getattr(upload_result, "status_code", None)
+        if status_code not in (200, 201):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Supabase upload failed: status_code={status_code}"
+            )
 
         logger.info(f"Upload succeeded for {path}")
 
