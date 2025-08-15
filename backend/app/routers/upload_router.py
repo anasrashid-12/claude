@@ -58,8 +58,11 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
 
-    if not getattr(upload_result, "data", None):
-        raise Exception("Upload failed: no data returned from Supabase")
+    # ✅ Fix: New SDK returns None on success, old SDK returns dict with error
+    if isinstance(upload_result, dict) and upload_result.get("error"):
+        raise Exception(f"Upload failed: {upload_result['error']['message']}")
+    
+    logger.info(f"Upload succeeded for {path}")
 
     # Insert DB row
     try:
@@ -104,26 +107,6 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
         "celery_job_id": celery_job_id,
         "remaining_credits": remaining
     }
-
-
-@upload_router.post("/upload")
-async def upload_image(
-    request: Request,
-    file: UploadFile = File(...),
-    operation: str = Form(...),
-    session: str = Cookie(None),
-):
-    shop = get_shop_from_cookie(session)
-    operation = normalize_operation(operation)
-
-    try:
-        result = await process_single_file(file, operation, shop)
-        return JSONResponse(content=result, status_code=202)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Upload failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @upload_router.post("/upload-multiple")
