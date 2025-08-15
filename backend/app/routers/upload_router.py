@@ -56,8 +56,9 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file_options={"content-type": file.content_type},
         )
 
-        data = upload_result.get("data")
-        error = upload_result.get("error")
+        # Check if the result has a 'data' attribute, else fallback
+        data = getattr(upload_result, "data", None)
+        error = getattr(upload_result, "error", None)
 
         if error:
             raise HTTPException(status_code=500, detail=f"Supabase upload failed: {error}")
