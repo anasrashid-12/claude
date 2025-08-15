@@ -3,7 +3,7 @@ from starlette.responses import JSONResponse
 import uuid
 import os
 import jwt
-from typing import List, Optional
+from typing import Optional
 from app.logging_config import logger
 from app.services.supabase_service import supabase
 from app.tasks.image_tasks import submit_job_task
@@ -55,7 +55,6 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             file=file_content,
             file_options={"content-type": file.content_type},
         )
-        # Check if data exists (success) or not
         if not getattr(upload_result, "data", None):
             raise Exception(f"Supabase upload failed: {getattr(upload_result, 'error', 'Unknown error')}")
         logger.info(f"Upload succeeded for {path}")
@@ -110,7 +109,6 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
 
 @upload_router.post("/upload")
 async def upload_image(
-    request: Request,
     file: UploadFile = File(...),
     operation: str = Form(...),
     session: str = Cookie(None),
@@ -126,40 +124,6 @@ async def upload_image(
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@upload_router.post("/upload-multiple")
-async def upload_multiple_images(
-    request: Request,
-    files: List[UploadFile] = File(...),
-    operation: str = Form(...),
-    session: str = Cookie(None),
-):
-    shop = get_shop_from_cookie(session)
-    operation = normalize_operation(operation)
-
-    if not files:
-        raise HTTPException(status_code=400, detail="No files provided")
-
-    uploaded_results = []
-    failed_files = []
-
-    for file in files:
-        try:
-            result = await process_single_file(file, operation, shop)
-            uploaded_results.append(result)
-        except HTTPException as e:
-            failed_files.append({"filename": file.filename, "reason": e.detail})
-        except Exception as e:
-            failed_files.append({"filename": file.filename, "reason": str(e)})
-
-    if not uploaded_results:
-        raise HTTPException(status_code=500, detail="All uploads failed.")
-
-    return JSONResponse(content={
-        "success": uploaded_results,
-        "failed": failed_files
-    }, status_code=202)
 
 
 @upload_router.get("/images/{image_id}")
