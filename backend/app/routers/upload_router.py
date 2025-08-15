@@ -45,9 +45,10 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     filename = f"{uuid.uuid4()}.png"
     path = f"{shop}/upload/{filename}"
 
-    # Read file
+    # Read file content
     file_content = await file.read()
 
+    # Upload to Supabase Storage
     try:
         upload_result = supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
@@ -57,9 +58,13 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise Exception(f"Supabase upload failed: {e}")
 
-    if hasattr(upload_result, "error") and upload_result.error:
-        raise Exception(f"Upload failed: {upload_result.error.message}")
-    
+    # ✅ Check result safely
+    if hasattr(upload_result, "error") and upload_result.error is not None:
+        raise Exception(f"Upload failed: {upload_result.error}")
+
+    if not hasattr(upload_result, "data") or upload_result.data is None:
+        raise Exception("Upload failed: no data returned from Supabase")
+
     logger.info(f"Upload succeeded for {path}")
 
     # Insert DB row
