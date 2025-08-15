@@ -43,22 +43,30 @@ def get_shop_credits(shop_domain: str) -> int:
         raise ValueError("Shop credits not found")
     return res.data[0]["credits"]
 
-def deduct_shop_credit(shop_domain: str, amount: int = 1):
+def deduct_shop_credit(shop_domain: str, amount: int = 1, image_id: str = None):
     current = get_shop_credits(shop_domain)
     if current < amount:
         raise ValueError("Not enough credits")
 
     new_balance = current - amount
 
+    # Update shop credits
     response = supabase.table("shop_credits") \
         .update({"credits": new_balance}) \
         .eq("shop_domain", shop_domain) \
         .execute()
 
-    if response.error:
-        raise Exception(f"Failed to deduct credits: {response.error.message}")
+    if not getattr(response, "data", None):
+        raise Exception(f"Failed to deduct credits: no data returned")
 
+    # Log transaction
     log_credit_transaction(shop_domain, -amount, "Image processing")
+
+    # Optionally mark the image record as credits deducted
+    if image_id:
+        supabase.table("images").update({"credits_deducted": True}) \
+            .eq("id", image_id).execute()
+
     return new_balance
 
 

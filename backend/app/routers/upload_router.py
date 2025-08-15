@@ -59,7 +59,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Supabase upload failed: {e}")
 
-    # Insert DB row
+# Insert DB row
     try:
         insert_response = supabase.table("images").insert({
             "shop": shop,
@@ -69,11 +69,10 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "filename": file.filename,
         }).execute()
 
+        # Only check that data exists
         data = getattr(insert_response, "data", None)
-        status_code = getattr(insert_response, "status_code", 0)
-
-        if not data or status_code not in (200, 201):
-            raise HTTPException(status_code=500, detail=f"Database insert failed: {insert_response}")
+        if not data or len(data) == 0:
+            raise HTTPException(status_code=500, detail="Database insert failed: no data returned")
 
         image_id = data[0]["id"]
 
