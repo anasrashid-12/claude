@@ -90,7 +90,7 @@ def add_shop_credits(shop_domain: str, amount: int, reason: str = "Admin top-up"
 
 def log_credit_transaction(shop_domain: str, change_amount: int, reason: str):
     supabase.table("credit_transactions").insert({
-        "shop_domain": shop_domain,
+        "shop": shop_domain,
         "change_amount": change_amount,
         "reason": reason,
         "created_at": datetime.utcnow().isoformat()
