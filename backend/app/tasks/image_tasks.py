@@ -1,3 +1,4 @@
+# image_tasks.py
 import os
 import time
 import requests
@@ -7,7 +8,7 @@ from app.services.supabase_service import supabase
 from app.logging_config import logger
 from app.services.signed_url_util import get_signed_url
 from celery import shared_task
-from app.services.supabase_service import deduct_shop_credit, add_shop_credits
+from app.services.supabase_service import add_shop_credits
 
 MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
 MAKEIT3D_BASE_URL = "https://api.makeit3d.io"
@@ -18,12 +19,13 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+
 def wait_for_signed_url(path: str, retries: int = 10, delay: int = 5) -> str:
     for attempt in range(retries):
         try:
             return get_signed_url(path, expires_in=60 * 60 * 24)
         except Exception:
-            logger.warning(f"🕐 Waiting for file {path} to be ready... Attempt {attempt+1}/{retries}")
+            logger.warning(f"🕐 Waiting for file {path}... Attempt {attempt+1}/{retries}")
             time.sleep(delay)
     raise FileNotFoundError(f"File not found or timed out waiting: {path}")
 
@@ -35,16 +37,6 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     try:
         # Wait until the file is ready in Supabase
         signed_url = wait_for_signed_url(image_path)
-
-        # Deduct 1 credit and mark in DB
-        try:
-            new_balance = deduct_shop_credit(shop, amount=1)
-            supabase.table("images").update({"credits_deducted": True}).eq("id", image_id).execute()
-            logger.info(f"💰 Deducted 1 credit from {shop}. Remaining: {new_balance}")
-        except Exception as cred_err:
-            logger.error(f"❌ Credit deduction failed: {cred_err}")
-            supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
-            return
 
         # ✅ Mark as queued
         supabase.table("images").update({"status": "queued"}).eq("id", image_id).execute()
@@ -58,7 +50,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     except Exception as err:
         logger.error(f"❌ Pre-processing error: {err}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
-        # Refund if credit was deducted
+        # Refund if needed
         try:
             if supabase.table("images").select("credits_deducted").eq("id", image_id).execute().data[0]["credits_deducted"]:
                 add_shop_credits(shop, amount=1)
@@ -68,6 +60,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
             pass
         return
 
+    # Map operation to MakeIt3D endpoint
     endpoint_map = {
         "remove-bg": "/generate/remove-background",
         "upscale": "/generate/upscale",
@@ -96,7 +89,6 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json=payload, headers=HEADERS)
         res.raise_for_status()
         api_response = res.json()
-
         task_id = api_response.get("task_id")
         if not task_id:
             raise ValueError("No task_id returned from MakeIt3D API")
@@ -110,7 +102,7 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         # Refund credit if deducted
         try:
             if supabase.table("images").select("credits_deducted").eq("id", image_id).execute().data[0]["credits_deducted"]:
-                add_shop_credits(shop, amount=1)
+                add_shop_credits(shop, 1)
                 supabase.table("images").update({"credits_deducted": False}).eq("id", image_id).execute()
                 logger.info(f"💸 Refunded 1 credit to {shop} due to submission error")
         except Exception:

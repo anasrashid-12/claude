@@ -34,32 +34,6 @@ export default function UploadSection() {
 
   useEffect(() => () => items.forEach(i => URL.revokeObjectURL(i.preview)), [items]);
 
-  // Poll status for queued/processing images
-  useEffect(() => {
-    const activeItems = items.filter(i => i.imageId && (i.status === 'queued' || i.status === 'processing'));
-    if (!activeItems.length) return;
-
-    const interval = setInterval(async () => {
-      const updates = await Promise.all(
-        activeItems.map(async i => {
-          try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/images/${i.imageId}`, { credentials: 'include' });
-            if (!res.ok) return { id: i.imageId, status: i.status };
-            const data = await res.json();
-            return { id: i.imageId, status: (data?.status as ItemStatus) || i.status };
-          } catch { return { id: i.imageId, status: i.status }; }
-        })
-      );
-
-      setItems(prev => prev.map(p => {
-        const update = updates.find(u => u.id === p.imageId);
-        return update ? { ...p, status: update.status } : p;
-      }));
-    }, 2500);
-
-    return () => clearInterval(interval);
-  }, [items]);
-
   const handleFiles = (files: FileList) => {
     const selected = Array.from(files).filter(f => {
       if (!f.type.startsWith('image/')) return false;
@@ -76,6 +50,7 @@ export default function UploadSection() {
       progress: 0,
       status: 'idle',
     }));
+
     setItems(prev => [...prev, ...nextItems]);
   };
 
@@ -105,56 +80,59 @@ export default function UploadSection() {
     const formData = new FormData();
     formData.append('file', fileItem.file);
     formData.append('operation', selectedOption);
-
+  
     xhr.open('POST', `${process.env.NEXT_PUBLIC_BACKEND_URL}/upload`, true);
     xhr.withCredentials = true;
-
+  
     xhr.upload.onprogress = evt => {
       if (!evt.lengthComputable) return;
       const pct = Math.round((evt.loaded / evt.total) * 100);
       setItems(prev => prev.map(p => (p === fileItem ? { ...p, progress: pct, status: 'uploading' } : p)));
     };
-
+  
     xhr.onreadystatechange = async () => {
       if (xhr.readyState !== 4) return;
       try {
         const json = JSON.parse(xhr.responseText || '{}');
         if (xhr.status >= 200 && xhr.status < 300) {
-          const remaining = json?.remaining_credits;
           const imageId = json?.id;
-
-          // Update credits
-          if (remaining !== undefined) setShop(prev => prev ? { ...prev, credits: remaining } : prev);
-
-          // Remove successfully queued file from items
+          const remaining = json?.remaining_credits;
+  
+          // ✅ Update remaining credits from backend
+          if (remaining !== undefined)
+            setShop(prev => prev ? { ...prev, credits: remaining } : prev);
+  
+          // ✅ Remove uploaded item immediately from frontend
           setItems(prev => prev.filter(p => p !== fileItem));
-
+  
           toast.success(`✅ ${fileItem.file.name} queued`);
         } else {
           const detail = json?.detail?.message || json?.detail || 'Upload failed';
-          setItems(prev => prev.map(p => (p === fileItem ? { ...p, status: 'error', error: detail } : p)));
+          setItems(prev => prev.map(p => p === fileItem ? { ...p, status: 'error', error: detail } : p));
           toast.error(`❌ ${fileItem.file.name}: ${detail}`);
         }
       } catch {
-        setItems(prev => prev.map(p => (p === fileItem ? { ...p, status: 'error', error: 'Upload failed' } : p)));
+        setItems(prev => prev.map(p => p === fileItem ? { ...p, status: 'error', error: 'Upload failed' } : p));
         toast.error(`❌ ${fileItem.file.name}: Upload failed`);
-      } finally { resolve(); }
+      } finally {
+        resolve();
+      }
     };
-
+  
     xhr.send(formData);
   });
-
+  
   const handleUploadIndividually = async () => {
     if (!items.length || !shop) return;
     if ((shop.credits ?? 0) <= 0) {
       toast.error('❌ You have no credits left. Please purchase more.');
       return;
     }
-
+  
     setUploading(true);
     for (const it of items) {
       if (it.status !== 'idle' && it.status !== 'error') continue;
-      if ((shop.credits ?? 0) <= 0) break;
+      if ((shop.credits ?? 0) <= 0) break; // stop if no credits left
       await uploadOne(it);
     }
     setUploading(false);

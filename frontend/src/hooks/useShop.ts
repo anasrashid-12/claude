@@ -40,7 +40,7 @@ export default function useShop(): UseShopResult {
         if (isMounted && data.shop) {
           setShop({ shop: data.shop, credits: data.credits ?? 0 });
 
-          // Supabase realtime subscription
+          // Supabase Realtime subscription for credits
           channel
             .on(
               'postgres_changes',
@@ -72,31 +72,11 @@ export default function useShop(): UseShopResult {
 
     fetchShop();
 
-    // Polling fallback for credits (every 30 seconds)
-    const interval = setInterval(async () => {
-      if (!shop?.shop) return;
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/me`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.shop && data.credits !== undefined) {
-          setShop(prev => prev ? { ...prev, credits: data.credits } : prev);
-        }
-      } catch (err) {
-        console.error('[useShop polling] Error:', err);
-      }
-    }, 30000);
-
     return () => {
       isMounted = false;
-      clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [shop?.shop]);
+  }, []);
 
   return { shop, loading, error, setShop };
 }

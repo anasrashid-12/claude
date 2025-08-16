@@ -1,3 +1,4 @@
+# upload_router.py
 from fastapi import APIRouter, UploadFile, File, HTTPException, Cookie, Form
 from starlette.responses import JSONResponse
 import uuid
@@ -48,7 +49,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     # Read file content
     file_content = await file.read()
 
-    # Upload to Supabase Storage safely
+    # Upload to Supabase Storage
     try:
         supabase.storage.from_(SUPABASE_BUCKET).upload(
             path=path,
@@ -59,7 +60,7 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Supabase upload failed: {e}")
 
-# Insert DB row
+    # Insert DB row
     try:
         insert_response = supabase.table("images").insert({
             "shop": shop,
@@ -69,27 +70,29 @@ async def process_single_file(file: UploadFile, operation: str, shop: str):
             "filename": file.filename,
         }).execute()
 
-        # Only check that data exists
         data = getattr(insert_response, "data", None)
         if not data or len(data) == 0:
-            raise HTTPException(status_code=500, detail="Database insert failed: no data returned")
+            raise HTTPException(status_code=500, detail="Database insert failed")
 
         image_id = data[0]["id"]
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database insert failed: {e}")
 
-    # Deduct credit
+    # Deduct 1 credit
     try:
         remaining = deduct_shop_credit(shop, amount=1)
+        # Mark in images table that credit was deducted
+        supabase.table("images").update({"credits_deducted": True}).eq("id", image_id).execute()
+        logger.info(f"💰 Deducted 1 credit from {shop}. Remaining: {remaining}")
     except ValueError:
         supabase.table("images").delete().eq("id", image_id).execute()
         raise HTTPException(status_code=402, detail={
-            "message": "Not enough credits. Please purchase more to continue.",
+            "message": "Not enough credits. Please purchase more.",
             "remaining_credits": 0
         })
 
-    # Queue job
+    # Queue Celery job
     try:
         task_result = submit_job_task.delay(image_id, operation, path, shop)
         celery_job_id = task_result.id
