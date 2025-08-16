@@ -2,13 +2,13 @@
 
 import { Bell, CircleHelp, Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
-import useShop from '@/hooks/useShop';
+import useCredits from '@/hooks/useCredits';
 import useAvatar from '@/hooks/useAvatar';
 import Image from 'next/image';
 
 export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
-  const { shop, loading: shopLoading, error } = useShop();
+  const { credits } = useCredits();
   const { avatarUrl, loading: avatarLoading } = useAvatar();
 
   return (
@@ -18,21 +18,13 @@ export default function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
 
       <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[60%]">
-        {/* You can add title or leave empty */}
+        {/* optional title */}
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Credits display */}
+        {/* ✅ Credits display (always latest from backend) */}
         <div className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[90px] text-right">
-          {shopLoading ? (
-            <span>Loading credits...</span>
-          ) : error ? (
-            <span className="text-red-500">Error</span>
-          ) : (
-            <>
-              Credits: <span className="font-bold">{shop?.credits ?? 0}</span>
-            </>
-          )}
+          Credits: <span className="font-bold">{credits ?? "..."}</span>
         </div>
 
         <button

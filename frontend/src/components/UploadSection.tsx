@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import useShop from '@/hooks/useShop';
+import useCredits from '@/hooks/useCredits';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -27,6 +28,7 @@ type FileItem = {
 
 export default function UploadSection() {
   const { shop, loading: shopLoading, setShop } = useShop();
+  const { refreshCredits } = useCredits();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<FileItem[]>([]);
   const [selectedOption, setSelectedOption] = useState(OPTIONS[0].value);
@@ -96,13 +98,11 @@ export default function UploadSection() {
         const json = JSON.parse(xhr.responseText || '{}');
         if (xhr.status >= 200 && xhr.status < 300) {
           const imageId = json?.id;
-          const remaining = json?.remaining_credits;
-  
-          // ✅ Update remaining credits from backend
-          if (remaining !== undefined)
-            setShop(prev => prev ? { ...prev, credits: remaining } : prev);
-  
-          // ✅ Remove uploaded item immediately from frontend
+
+          // ✅ Topbar ke credits refresh karo
+          await refreshCredits();
+
+          // ✅ Remove uploaded item
           setItems(prev => prev.filter(p => p !== fileItem));
   
           toast.success(`✅ ${fileItem.file.name} queued`);
@@ -121,7 +121,7 @@ export default function UploadSection() {
   
     xhr.send(formData);
   });
-  
+
   const handleUploadIndividually = async () => {
     if (!items.length || !shop) return;
     if ((shop.credits ?? 0) <= 0) {
@@ -216,7 +216,7 @@ export default function UploadSection() {
         disabled={!items.length || uploading || noCredits}
         className={`w-full sm:w-auto px-5 py-2.5 rounded-lg text-white ${noCredits ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'} transition disabled:opacity-50`}
       >
-        {uploading ? 'Uploading...' : `Upload Individually (${items.length})`}
+        {uploading ? 'Uploading...' : `Upload (${items.length})`}
       </button>
     </div>
   );

@@ -156,3 +156,18 @@ async def confirm_after_return(planId: str, session: str = Cookie(None), sandbox
     )
 
     return RedirectResponse(f"{FRONTEND_URL}/dashboard?credits_added={plan['credits']}")
+
+@credits_router.get("/credits/me")
+async def get_my_credits(session: str = Cookie(None)):
+    if not session:
+        raise HTTPException(status_code=401, detail="Missing session")
+
+    shop = get_shop_from_session(session)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    resp = supabase.table("shops").select("credits").eq("shop", shop).single().execute()
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Shop not found")
+
+    return {"credits": resp.data["credits"]}
