@@ -7,7 +7,12 @@ export default function useCredits() {
 
   const refreshCredits = useCallback(async () => {
     try {
-      const res = await fetch("/api/credits/me", { credentials: "include" });
+        const res = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/credits/me`,
+            {
+              credentials: "include",
+            }
+          );
       if (!res.ok) throw new Error("Failed to fetch credits");
       const data = await res.json();
       setCredits(data.credits);
