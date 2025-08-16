@@ -13,6 +13,7 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+
 def save_shop_token(shop: str, access_token: str):
     try:
         logger.info(f"[Supabase] 🔄 Upserting token for {shop}")
@@ -26,6 +27,7 @@ def save_shop_token(shop: str, access_token: str):
         logger.exception(f"[Supabase] ❌ Failed to save token for {shop}: {e}")
         raise
 
+
 # 🆕 Credit-related helpers
 def initialize_shop_credits(shop_domain: str, initial_credits: int = 10):
     """Set up credits for a new shop if not already exists."""
@@ -34,27 +36,32 @@ def initialize_shop_credits(shop_domain: str, initial_credits: int = 10):
         return existing.data[0]
     return supabase.table("shop_credits").insert({
         "shop_domain": shop_domain,
-        "credits": initial_credits
+        "credits": initial_credits,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
     }).execute().data
 
+
 def get_shop_credits(shop_domain: str) -> int:
-    res = supabase.table("shop_credits").select("credits").eq("shop_domain", shop_domain).execute()
+    res = supabase.table("shop_credits").select("credits").eq("shop_domain", shop_domain).single().execute()
     if not res.data:
         raise ValueError("Shop credits not found")
-    return res.data[0]["credits"]
+    return res.data["credits"]
+
 
 def deduct_shop_credit(shop_domain: str, amount: int = 1, image_id: str = None):
+    """Deduct credits from shop and mark image if needed"""
     current = get_shop_credits(shop_domain)
     if current < amount:
         raise ValueError("Not enough credits")
 
     new_balance = current - amount
 
-    # Update shop credits
-    response = supabase.table("shop_credits") \
-        .update({"credits": new_balance}) \
-        .eq("shop_domain", shop_domain) \
-        .execute()
+    # ✅ Fix: use new_balance
+    response = supabase.table("shop_credits").update({
+        "credits": new_balance,
+        "updated_at": datetime.utcnow().isoformat()
+    }).eq("shop_domain", shop_domain).execute()
 
     if not getattr(response, "data", None):
         raise Exception(f"Failed to deduct credits: no data returned")
@@ -62,7 +69,7 @@ def deduct_shop_credit(shop_domain: str, amount: int = 1, image_id: str = None):
     # Log transaction
     log_credit_transaction(shop_domain, -amount, "Image processing")
 
-    # Optionally mark the image record as credits deducted
+    # Mark the image record
     if image_id:
         supabase.table("images").update({"credits_deducted": True}) \
             .eq("id", image_id).execute()
@@ -70,16 +77,20 @@ def deduct_shop_credit(shop_domain: str, amount: int = 1, image_id: str = None):
     return new_balance
 
 
-def add_shop_credits(shop_domain: str, amount: int, reason: str):
+def add_shop_credits(shop_domain: str, amount: int, reason: str = "Admin top-up"):
     current = get_shop_credits(shop_domain)
     new_balance = current + amount
-    supabase.table("shop_credits").update({"credits": new_balance}).eq("shop_domain", shop_domain).execute()
+    supabase.table("shop_credits").update({
+        "credits": new_balance,
+        "updated_at": datetime.utcnow().isoformat()
+    }).eq("shop_domain", shop_domain).execute()
     log_credit_transaction(shop_domain, amount, reason)
     return new_balance
 
+
 def log_credit_transaction(shop_domain: str, change_amount: int, reason: str):
     supabase.table("credit_transactions").insert({
-        "shop": shop_domain,
+        "shop_domain": shop_domain,
         "change_amount": change_amount,
         "reason": reason,
         "created_at": datetime.utcnow().isoformat()
