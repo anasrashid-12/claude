@@ -4,7 +4,7 @@ import { ReactNode, useEffect, useState, useMemo } from 'react';
 import { Provider } from '@shopify/app-bridge-react';
 import { getCookie, setCookie } from 'cookies-next';
 import { useSearchParams } from 'next/navigation';
-import { getSupabase } from '../../utils/supabase/supabaseClient'; // ✅ import your shared Supabase client
+import { getSupabase } from '../../utils/supabase/supabaseClient'; 
 
 interface AppBridgeProviderProps {
   children: ReactNode;

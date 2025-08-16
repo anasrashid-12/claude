@@ -3,7 +3,7 @@
 import useShop from '@/hooks/useShop';
 import { useEffect, useState } from 'react';
 import { Badge, EmptyState, Thumbnail, BlockStack, Text } from '@shopify/polaris';
-import { getSupabase } from '../../../../utils/supabase/supabaseClient'; // ✅ shared client
+import { getSupabase } from '../../../../utils/supabase/supabaseClient'; 
 
 interface ImageRecord {
   id: string;
