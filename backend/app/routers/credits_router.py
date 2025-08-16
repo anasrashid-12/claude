@@ -166,7 +166,7 @@ async def get_my_credits(session: str = Cookie(None)):
     if not shop:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    resp = supabase.table("shops").select("credits").eq("shop", shop).single().execute()
+    resp = supabase.table("shop_credits").select("credits").eq("shop", shop).single().execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Shop not found")
 
