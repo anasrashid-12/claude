@@ -50,6 +50,7 @@ export default function UploadSection() {
           } catch { return { id: i.imageId, status: i.status }; }
         })
       );
+
       setItems(prev => prev.map(p => {
         const update = updates.find(u => u.id === p.imageId);
         return update ? { ...p, status: update.status } : p;
@@ -114,15 +115,20 @@ export default function UploadSection() {
       setItems(prev => prev.map(p => (p === fileItem ? { ...p, progress: pct, status: 'uploading' } : p)));
     };
 
-    xhr.onreadystatechange = () => {
+    xhr.onreadystatechange = async () => {
       if (xhr.readyState !== 4) return;
       try {
         const json = JSON.parse(xhr.responseText || '{}');
         if (xhr.status >= 200 && xhr.status < 300) {
           const remaining = json?.remaining_credits;
           const imageId = json?.id;
+
+          // Update credits
           if (remaining !== undefined) setShop(prev => prev ? { ...prev, credits: remaining } : prev);
-          setItems(prev => prev.map(p => (p === fileItem ? { ...p, status: 'queued', progress: 100, imageId } : p)));
+
+          // Remove successfully queued file from items
+          setItems(prev => prev.filter(p => p !== fileItem));
+
           toast.success(`✅ ${fileItem.file.name} queued`);
         } else {
           const detail = json?.detail?.message || json?.detail || 'Upload failed';

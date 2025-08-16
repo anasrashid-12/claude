@@ -7,6 +7,7 @@ from app.services.supabase_service import supabase
 from app.logging_config import logger
 from app.services.signed_url_util import get_signed_url
 from celery import shared_task
+from app.services.supabase_service import deduct_shop_credit, add_shop_credits
 
 MAKEIT3D_API_KEY = os.getenv("MAKEIT3D_API_KEY")
 MAKEIT3D_BASE_URL = "https://api.makeit3d.io"
@@ -35,6 +36,16 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         # Wait until the file is ready in Supabase
         signed_url = wait_for_signed_url(image_path)
 
+        # Deduct 1 credit and mark in DB
+        try:
+            new_balance = deduct_shop_credit(shop, amount=1)
+            supabase.table("images").update({"credits_deducted": True}).eq("id", image_id).execute()
+            logger.info(f"💰 Deducted 1 credit from {shop}. Remaining: {new_balance}")
+        except Exception as cred_err:
+            logger.error(f"❌ Credit deduction failed: {cred_err}")
+            supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+            return
+
         # ✅ Mark as queued
         supabase.table("images").update({"status": "queued"}).eq("id", image_id).execute()
 
@@ -47,6 +58,14 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     except Exception as err:
         logger.error(f"❌ Pre-processing error: {err}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+        # Refund if credit was deducted
+        try:
+            if supabase.table("images").select("credits_deducted").eq("id", image_id).execute().data[0]["credits_deducted"]:
+                add_shop_credits(shop, amount=1)
+                supabase.table("images").update({"credits_deducted": False}).eq("id", image_id).execute()
+                logger.info(f"💸 Refunded 1 credit to {shop} due to pre-processing error")
+        except Exception:
+            pass
         return
 
     endpoint_map = {
@@ -67,22 +86,11 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
     }
 
     if operation in ["remove-bg", "upscale"]:
-        payload.update({
-            "provider": "stability",
-            "output_format": "png"
-        })
+        payload.update({"provider": "stability", "output_format": "png"})
         if operation == "upscale":
-            payload.update({
-                "model": "fast",
-                "prompt": "high quality detailed image"
-            })
-
+            payload.update({"model": "fast", "prompt": "high quality detailed image"})
     elif operation == "downscale":
-        payload.update({
-            "max_size_mb": 2.0,
-            "aspect_ratio_mode": "original",
-            "output_format": "jpeg"
-        })
+        payload.update({"max_size_mb": 2.0, "aspect_ratio_mode": "original", "output_format": "jpeg"})
 
     try:
         res = requests.post(f"{MAKEIT3D_BASE_URL}{endpoint}", json=payload, headers=HEADERS)
@@ -93,15 +101,20 @@ def submit_job_task(image_id: str, operation: str, image_path: str, shop: str):
         if not task_id:
             raise ValueError("No task_id returned from MakeIt3D API")
 
-        supabase.table("images").update({
-            "task_id": task_id
-        }).eq("id", image_id).execute()
-
+        supabase.table("images").update({"task_id": task_id}).eq("id", image_id).execute()
         logger.info(f"✅ Submitted to MakeIt3D: Image ID: {image_id}, Task ID: {task_id}")
 
     except Exception as e:
         logger.error(f"❌ Failed to submit job for image {image_id}: {e}")
         supabase.table("images").update({"status": "error"}).eq("id", image_id).execute()
+        # Refund credit if deducted
+        try:
+            if supabase.table("images").select("credits_deducted").eq("id", image_id).execute().data[0]["credits_deducted"]:
+                add_shop_credits(shop, amount=1)
+                supabase.table("images").update({"credits_deducted": False}).eq("id", image_id).execute()
+                logger.info(f"💸 Refunded 1 credit to {shop} due to submission error")
+        except Exception:
+            pass
 
     poll_all_processing_images.apply_async(countdown=10)
 
@@ -130,6 +143,14 @@ def poll_all_processing_images(self):
                     "status": "failed",
                     "error_message": "Max polling attempts reached"
                 }).eq("id", image_id).execute()
+                # Refund credit if deducted
+                if img.get("credits_deducted"):
+                    try:
+                        add_shop_credits(shop, 1)
+                        supabase.table("images").update({"credits_deducted": False}).eq("id", image_id).execute()
+                        logger.info(f"💸 Refunded 1 credit to {shop} due to max retries")
+                    except Exception:
+                        pass
                 continue
 
             try:
@@ -173,6 +194,14 @@ def poll_all_processing_images(self):
                         "status": "failed",
                         "error_message": "Image failed during processing."
                     }).eq("id", image_id).execute()
+                    # Refund credit if deducted
+                    if img.get("credits_deducted"):
+                        try:
+                            add_shop_credits(shop, 1)
+                            supabase.table("images").update({"credits_deducted": False}).eq("id", image_id).execute()
+                            logger.info(f"💸 Refunded 1 credit to {shop} due to processing failure")
+                        except Exception:
+                            pass
 
                 else:
                     supabase.table("images").update({
