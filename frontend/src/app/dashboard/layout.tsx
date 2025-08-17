@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <AppBridgeProvider>
       <ThemeProvider>
-        <CreditsProvider>   {/* ✅ ab credits globally available */}
+        <CreditsProvider>   
           <InnerLayout>{children}</InnerLayout>
         </CreditsProvider>
       </ThemeProvider>
