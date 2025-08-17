@@ -1,33 +1,65 @@
-'use client';
+import { useEffect, useState, createContext, useContext, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+import useShop from "@/hooks/useShop";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 type CreditsContextType = {
-  credits: number | null;
+  credits: number;
   refreshCredits: () => Promise<void>;
 };
 
-const CreditsContext = createContext<CreditsContextType | undefined>(undefined);
+const CreditsContext = createContext<CreditsContextType>({
+  credits: 0,
+  refreshCredits: async () => {},
+});
 
-export function CreditsProvider({ children }: { children: ReactNode }) {
-  const [credits, setCredits] = useState<number | null>(null);
+export function CreditsProvider({ children }: { children: React.ReactNode }) {
+  const [credits, setCredits] = useState(0);
+  const shop = useShop();
 
+  // ✅ Manual refresh
   const refreshCredits = useCallback(async () => {
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/credits/me`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to fetch credits');
+    if (!shop) return;
+    const res = await fetch("/api/credits");
+    if (res.ok) {
       const data = await res.json();
       setCredits(data.credits);
-    } catch (err) {
-      console.error('Credit fetch failed:', err);
     }
-  }, []);
+  }, [shop]);
 
   useEffect(() => {
+    if (!shop) return;
+
+    // initial fetch
     refreshCredits();
-  }, [refreshCredits]);
+
+    // realtime subscription
+    const channel = supabase
+      .channel(`credits-${shop}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "shop_credits",
+          filter: `shop_domain=eq.${shop}`,
+        },
+        (payload) => {
+          if (payload.new?.credits !== undefined) {
+            setCredits(payload.new.credits);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [shop, refreshCredits]);
 
   return (
     <CreditsContext.Provider value={{ credits, refreshCredits }}>
@@ -37,7 +69,5 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
 }
 
 export function useCredits() {
-  const ctx = useContext(CreditsContext);
-  if (!ctx) throw new Error('useCredits must be used inside <CreditsProvider>');
-  return ctx;
+  return useContext(CreditsContext);
 }
