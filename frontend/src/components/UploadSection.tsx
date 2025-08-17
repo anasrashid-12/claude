@@ -108,7 +108,7 @@ export default function UploadSection() {
             await refreshCredits();
   
             // ✅ Remove uploaded item from list
-            setItems(prev => prev.filter(p => p !== fileItem));
+            setItems(prev => prev.filter(p => p.preview !== fileItem.preview));
   
             toast.success(`✅ ${fileItem.file.name} uploaded & cleared`);
           } else {
