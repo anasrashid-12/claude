@@ -6,6 +6,7 @@ import AppBridgeProvider from '@/components/AppBridgeProvider';
 import { AppProvider, Frame } from '@shopify/polaris';
 import en from '@shopify/polaris/locales/en.json';
 import { ThemeProvider, useTheme } from '@/components/ThemeProvider';
+import { CreditsProvider } from '@/components/CreditsProvider'; // ✅ import
 import Sidebar from './sidebar';
 import TopBar from '@/components/TopBar';
 import '@shopify/polaris/build/esm/styles.css';
@@ -50,7 +51,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <AppBridgeProvider>
       <ThemeProvider>
-        <InnerLayout>{children}</InnerLayout>
+        <CreditsProvider>   {/* ✅ ab credits globally available */}
+          <InnerLayout>{children}</InnerLayout>
+        </CreditsProvider>
       </ThemeProvider>
     </AppBridgeProvider>
   );

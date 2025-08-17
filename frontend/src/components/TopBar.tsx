@@ -2,7 +2,7 @@
 
 import { Bell, CircleHelp, Moon, Sun, Menu } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
-import useCredits from '@/hooks/useCredits';
+import { useCredits } from '@/components/CreditsProvider';
 import useAvatar from '@/hooks/useAvatar';
 import Image from 'next/image';
 

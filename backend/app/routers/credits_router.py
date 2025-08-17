@@ -169,9 +169,9 @@ async def get_credits(request: Request, session: str = Cookie(None)):
     if not shop_domain:
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    # Fetch from shop_credits table
     result = supabase.table("shop_credits").select("credits").eq("shop_domain", shop_domain).single().execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Credits not found")
 
-    return {"credits": result.data["credits"]}
+    # ✅ Default value agar record nahi mila
+    credits = result.data["credits"] if result.data else 0
+
+    return {"credits": credits}
