@@ -30,7 +30,7 @@ def create_app():
     app = FastAPI(
         title="Maxflow AI Image Processor",
         description="Shopify AI Image App - FastAPI Backend",
-        version="1.0.0"
+        version="1.0.0",
     )
 
     @app.get("/favicon.ico")
@@ -41,6 +41,7 @@ def create_app():
     async def health_check():
         return {"status": "ok"}
 
+    # --- Core middleware (order matters) ---
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[FRONTEND_URL] if FRONTEND_URL else ["*"],
@@ -49,9 +50,34 @@ def create_app():
         allow_headers=["*"],
     )
 
+    # Content-Security-Policy / security hardening
     app.add_middleware(CSPMiddleware)
-    app.add_middleware(RateLimitMiddleware)
 
+    # ✅ Production-grade Rate Limiter (dual window + dedupe + overrides)
+    app.add_middleware(
+        RateLimitMiddleware,
+        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        # global defaults (burst per second, sustained per minute)
+        burst_limit=int(os.getenv("RL_BURST_LIMIT", "10")),
+        burst_window_s=int(os.getenv("RL_BURST_WINDOW", "1")),
+        sustained_limit=int(os.getenv("RL_SUST_LIMIT", "60")),
+        sustained_window_s=int(os.getenv("RL_SUST_WINDOW", "60")),
+        # per-path tightening for hot endpoints
+        per_path_limits={
+            "/upload": (5, 1, 30, 60),             # 5/s burst, 30/min sustained
+            "/image": (3, 1, 15, 60),     # example route
+        },
+        # allow specific shops to bypass limits (CSV env)
+        allowlist_shops=set(filter(None, (os.getenv("RL_ALLOWLIST", "").split(",")))),
+        exempt_paths={"/health", "/metrics", "/docs", "/openapi.json", "/favicon.ico"},
+        exempt_methods={"OPTIONS"},
+        jwt_secret=os.getenv("JWT_SECRET", "change_me"),
+        # set this if you have a stable user/account id header; otherwise it falls back to shop/ip
+        identifier_header=os.getenv("RL_ID_HEADER", ""),
+        header_prefix="RateLimit",  # emits RateLimit-Limit/Remaining/Reset
+    )
+
+    # Security headers (keep after above)
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
@@ -61,10 +87,13 @@ def create_app():
         response.headers["P3P"] = 'CP="Not used"'
         return response
 
+    # --- Exception handlers ---
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request, exc):
         logger.warning(f"HTTP Exception: {exc.detail}")
-        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        # 429s from the limiter already include RateLimit headers; preserve them
+        headers = getattr(exc, "headers", None)
+        return JSONResponse({"error": exc.detail}, status_code=exc.status_code, headers=headers)
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request, exc):
@@ -88,9 +117,8 @@ def create_app():
     app.include_router(settings_router)
     app.include_router(credits_router)
     app.include_router(dashboard_stats_router)
-    
+
     logger.info("✅ Backend initialized.")
     return app
-
 
 app = create_app()
