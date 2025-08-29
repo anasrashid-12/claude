@@ -161,10 +161,11 @@ Railway should automatically detect Next.js, but verify these settings:
 4. Update the following:
 
 ```
-App URL: https://your-frontend.railway.app
+App URL: https://maxflow-gallery-frontend.up.railway.app/auth/toplevel
 Allowed redirection URLs:
-- https://your-frontend.railway.app/auth/callback
-- https://your-frontend.railway.app/auth/toplevel
+- https://maxflow-gallery-backend.up.railway.app/auth/callback
+- https://maxflow-gallery-backend.up.railway.app/auth/oauth
+
 ```
 
 ### 6.2 Configure Webhooks
