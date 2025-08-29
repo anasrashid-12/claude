@@ -22,33 +22,25 @@ def generate_signed_url(path: str):
 @fileserve_router.get("/fileserve/download")
 async def download_image(path: str = Query(...)):
     try:
-        # 🔐 Path validation (only allow files under images/)
-        if not path.startswith("images/"):
-            raise HTTPException(status_code=400, detail="Invalid file path")
-
         signed_url = get_signed_url(path)
 
         async with httpx.AsyncClient() as client:
-            resp = await client.get(signed_url, timeout=None)
+            resp = await client.get(signed_url)
 
         if resp.status_code != 200:
-            logger.error(f"Supabase file fetch failed [{resp.status_code}] for {path}")
+            logger.warning(f"Supabase file fetch failed: {resp.status_code}")
             raise HTTPException(status_code=404, detail="Image not found")
 
         filename = path.split("/")[-1]
-
         return StreamingResponse(
-            resp.aiter_bytes(),   # ✅ async streaming, avoids memory blowup
+            iter([resp.content]),
             media_type=resp.headers.get("content-type", "application/octet-stream"),
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Cache-Control": "private, max-age=3600"
+                "Content-Disposition": f'attachment; filename="{filename}"'
             }
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Download failed for {path}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal download error")
+        logger.warning(f"Download failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
 
