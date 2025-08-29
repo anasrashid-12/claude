@@ -172,7 +172,7 @@ Allowed redirection URLs:
 
 1. In your app settings, go to "Webhooks"
 2. Add webhook endpoints pointing to your backend:
-   - URL: `https://your-backend.railway.app/webhooks/shopify`
+   - URL: `https://maxflow-gallery-backend.up.railway.app/webhooks/uninstall`
    - Events: Select the events you need
 
 ## ✅ Step 7: Test Your Deployment
